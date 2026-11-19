@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Variables thème */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Arial, Helvetica, sans-serif; /* fallback */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Bouton WhatsApp flottant */
+.whatsapp-float {
+  position: fixed;
+  right: 20px; /* was left: 20px */
+  bottom: 20px; /* reduced bottom to be visible on mobile */
+  width: 60px;
+  height: 60px;
+  background-color: #25d366;
+  color: #fff;
+  border-radius: 50%;
+  border: none;
+  font-size: 30px;
+  cursor: pointer;
+  z-index: 99999; /* higher to stay above other elements */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  touch-action: manipulation; /* improve mobile tap behaviour */
+}
+
+@media (max-width: 480px) {
+  .whatsapp-float {
+    width: 56px;
+    height: 56px;
+    font-size: 26px;
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .whatsapp-float {
+    width: 52px;
+    height: 52px;
+    font-size: 24px;
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+.whatsapp-float:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.mobile-menu .contact-info-box .title,
+.header-right .contact-info-box .title { color: orange !important; }
+
+.banner-title2 {
+  font-weight: 400;
+  font-size: 108px;
+  line-height: 1.09;
+  text-transform: uppercase;
+  color: var(--theme-color-white);
+  margin-bottom: 16px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  white-space: normal;
+}
+.banner-title2 span,
+.section-title span { display: inline-block; }
+
+.room-block-island { height: 100%; }
+.room-block-island .inner-block { display: flex; flex-direction: column; height: 100%; }
+
+.image-box { position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; }
+.image-box img { width: 100%; height: 100%; object-fit: cover; }
+
+.content-box { flex: 1; }
+
+
+
+.html_description {
+  margin-top: 80px;
+  line-height: 1.7;
+}
+
+.html_description h3 {
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+
+.html_description ul {
+  padding-left: 20px;
+  margin-top: 10px;
+}
+
+.html_description li {
+  margin-bottom: 6px;
+}
+/* Image flottante à droite */
+.about-img-float-right {
+  float: right;
+  width: 40%; /* Ajuste selon la taille souhaitée */
+  max-width: 450px;
+  margin: 0 0 20px 20px; /* marge à gauche et en bas pour le texte */
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+/* Textes stylés comme blog */
+.about-long-description h3.blog-details__title {
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+.about-long-description p.blog-details__text-2 {
+  margin-bottom: 20px;
+  line-height: 1.8;
+}
+
+.cta-button {
+  display: inline-block;
+  padding: 12px 24px;
+  background-color: #1a73e8;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 5px;
+  font-size: 16px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.cta-button:hover {
+  background-color: #1558b3;
+}
+/* Les styles spécifiques à la section réservation ont été déplacés
+   vers un CSS module : app/booking/booking.module.css */

@@ -1,0 +1,610 @@
+"use client";
+import { useState, useEffect, useMemo } from "react";
+import Flatpickr from "react-flatpickr";
+import "flatpickr/dist/themes/material_blue.css";
+import {BookingInfos, extrasList, ROOM_TYPES, RoomParams, defaultContactInfos} from "@/app/types/hotelData";
+import axios from "axios";
+import QRCode from "qrcode";
+import { ToastContainer, toast } from "react-toastify";
+import 'react-toastify/dist/ReactToastify.css';
+
+// Constantes partagées
+const MIN_ADVANCE_HOURS = 2;
+const PRICE_SUITE = 60000;
+const PRICE_CLIM = 25000;
+const PRICE_VENT = 20000;
+
+function formatPrice(amount: number) {
+    return amount.toLocaleString();
+}
+
+// Helper: génère un numéro de réservation comme demandé
+function generateReservationNumber(date = new Date()): string {
+    const y = date.getFullYear().toString();
+    const m = (date.getMonth() + 1).toString().padStart(2, "0");
+    const d = date.getDate().toString().padStart(2, "0");
+    const hh = date.getHours().toString().padStart(2, "0");
+    const mm = date.getMinutes().toString().padStart(2, "0");
+    const ss = date.getSeconds().toString().padStart(2, "0");
+    return `RCHLP00(${y}${m}${d}${hh}${mm}${ss})`;
+}
+
+export default function ReservationForm() {
+    const [step, setStep] = useState(0);
+    const [form, setForm] = useState<BookingInfos>({
+        arrival: null,
+        departure: null,
+        numRooms: 1,
+        rooms: {},
+        extras: [],
+        customer: { name: "", email: "", phone: "", whatsapp: false },
+    });
+
+
+    const [errorsStep1, setErrorsStep1] = useState<Record<string, string>>({});
+    const [errorsStep2, setErrorsStep2] = useState<Record<string, Record<string, string>>>({});
+    const [errorsStep4, setErrorsStep4] = useState<Record<string, string>>({});
+    const [reservationNumber, setReservationNumber] = useState<string | undefined>(undefined);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+    // quantités par extra (définies par l'utilisateur)
+    const [extrasQty, setExtrasQty] = useState<Record<string, number>>({});
+
+    // memoized derived values
+    const nights = useMemo(() => {
+        if (!form.arrival || !form.departure) return 1;
+        const diff = form.departure.getTime() - form.arrival.getTime();
+        const n = Math.ceil(diff / (1000 * 3600 * 24));
+        return n > 0 ? n : 1;
+    }, [form.arrival, form.departure]);
+
+    // total persons (adultes + enfants)
+    const totalPeople = useMemo(() => {
+        return Object.values(form.rooms).reduce((acc, r) => acc + (r.adults || 0) + (r.children || 0), 0);
+    }, [form.rooms]);
+
+    const total = useMemo(() => {
+        let roomTotal = 0;
+        Object.values(form.rooms).forEach((room) => {
+            if (room.type === "suite") roomTotal += PRICE_SUITE;
+            else if (room.type !== "") roomTotal += room.clim === "oui" ? PRICE_CLIM : PRICE_VENT;
+        });
+        let extrasTotal = 0;
+        // extras priced per selected quantity (user-controlled)
+        form.extras.forEach(name => {
+            const ex = extrasList.find(e => e.name === name);
+            if (ex) {
+                const qty = extrasQty[name] ?? Math.max(1, totalPeople);
+                extrasTotal += ex.price * Math.max(1, qty);
+            }
+        });
+        return (roomTotal * nights) + extrasTotal;
+    }, [form.rooms, form.extras, nights, extrasQty, totalPeople]);
+
+    // ---------- Handlers ----------
+    useEffect(() => {
+        setForm(prev => {
+            const newRooms = { ...prev.rooms };
+            for (let i = 1; i <= prev.numRooms; i++) {
+                if (!newRooms[`room${i}`]) newRooms[`room${i}`] = { type: "", adults: 1, children: 0, clim: "" };
+            }
+            Object.keys(newRooms).filter(k => Number(k.replace("room", "")) > prev.numRooms).forEach(k => delete newRooms[k]);
+            return { ...prev, rooms: newRooms };
+        });
+    }, [form.numRooms]);
+
+    const handleRoomChange = (key: string, field: keyof RoomParams, value: any) => {
+        setForm(prev => {
+            const updated = { ...prev.rooms };
+            if (field === "type" && value === "suite") {
+                updated[key] = { ...updated[key], type: value, clim: "oui" };
+            } else {
+                updated[key] = { ...updated[key], [field]: value };
+            }
+            return { ...prev, rooms: updated };
+        });
+    };
+
+    const toggleExtra = (name: string) => {
+        setForm(prev => {
+            const added = !prev.extras.includes(name);
+            const nextExtras = added ? [...prev.extras, name] : prev.extras.filter(e => e !== name);
+            // if added, initialize qty to totalPeople
+            if (added) setExtrasQty(prevQ => ({ ...prevQ, [name]: Math.max(1, totalPeople) }));
+            else setExtrasQty(prevQ => { const copy = { ...prevQ }; delete copy[name]; return copy; });
+            return { ...prev, extras: nextExtras };
+        });
+    };
+
+    const setExtraQty = (name: string, qty: number) => {
+        const n = Math.max(1, Math.floor(qty));
+        setExtrasQty(prev => ({ ...prev, [name]: n }));
+    };
+
+    // ---------- Validations ----------
+    // helpers pour réduire la complexité cognitive de validateStep1
+    const checkArrival = (errs: Record<string, string>, now: Date) => {
+        if (!form.arrival) {
+            errs.arrival = "Date d'arrivée obligatoire";
+            return;
+        }
+        const isToday = form.arrival.toDateString() === now.toDateString();
+        if (isToday) {
+            const minArrival = new Date(now.getTime() + MIN_ADVANCE_HOURS * 60 * 60 * 1000);
+            if (form.arrival < minArrival) errs.arrival = `Arrivée : minimum ${MIN_ADVANCE_HOURS}h à l'avance aujourd'hui`;
+        }
+    };
+
+    const checkDeparture = (errs: Record<string, string>) => {
+        if (!form.departure) {
+            errs.departure = "Date de départ obligatoire";
+            return;
+        }
+        if (!form.arrival) return;
+        const sameDay = form.arrival.toDateString() === form.departure.toDateString();
+        if (sameDay) {
+            const minDeparture = new Date(form.arrival.getTime() + MIN_ADVANCE_HOURS * 60 * 60 * 1000);
+            if (form.departure < minDeparture) errs.departure = `Le départ doit être au moins ${MIN_ADVANCE_HOURS}h après l'arrivée`;
+        } else if (form.departure <= form.arrival) {
+            errs.departure = "Départ invalide";
+        }
+    };
+
+    const validateStep1 = () => {
+        const errs: Record<string, string> = {};
+        const now = new Date();
+        checkArrival(errs, now);
+        checkDeparture(errs);
+        setErrorsStep1(errs);
+        if (Object.keys(errs).length === 0) setStep(1);
+    };
+
+
+    // Helper extrait pour valider une chambre individuelle (réduit la complexité de la fonction caller)
+    const validateRoom = (r: RoomParams): Record<string, string> => {
+        const e: Record<string, string> = {};
+        if (!r.type) e.type = "Type obligatoire";
+        if (r.type !== "suite" && r.type !== "" && !r.clim) e.clim = "Option obligatoire";
+
+        const total = (r.adults || 0) + (r.children || 0);
+        switch (r.type) {
+            case "simple":
+                if (total > 2) e.cap = "Max 2 pers. au total";
+                break;
+            case "double":
+                if (total > 4) e.cap = "Max 4 pers. au total";
+                break;
+            case "suite":
+                if ((r.adults || 0) > 2) e.cap = "Max 2 adultes";
+                if ((r.children || 0) > 2) e.cap = (e.cap ? `${e.cap} & ` : "") + "Max 2 enfants";
+                break;
+            default:
+                break;
+        }
+        return e;
+    };
+
+    const validateStep2 = () => {
+        const errs: Record<string, Record<string, string>> = {};
+        Object.keys(form.rooms).forEach(key => {
+            const r = form.rooms[key];
+            const roomErrors = validateRoom(r);
+            if (Object.keys(roomErrors).length) errs[key] = roomErrors;
+        });
+        setErrorsStep2(errs);
+        if (Object.keys(errs).length === 0) setStep(2);
+    };
+
+    const validateStep4 = () => {
+        const errs: Record<string, string> = {};
+        if (!form.customer.name.trim()) errs.name = "Nom obligatoire";
+        if (!form.customer.email?.trim()) errs.email = "Email obligatoire";
+        else {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(form.customer.email)) errs.email = "Email invalide";
+        }
+        if (!form.customer.phone.trim()) errs.phone = "Téléphone obligatoire";
+        setErrorsStep4(errs);
+        if (Object.keys(errs).length === 0) {
+            // Générer et stocker le numéro de réservation avant d'aller au step facture
+            const num = generateReservationNumber();
+            setReservationNumber(num);
+            setStep(4);
+        }
+    };
+
+    // Ouvre une nouvelle fenêtre contenant 2 pages puis lance l'impression:
+    // - page 1 : QR code basé sur le numéro de réservation + résumé
+    // - page 2 : facture proforma
+    const openPrintWindow = async (numParam?: string): Promise<void> => {
+        const num = numParam ?? reservationNumber ?? generateReservationNumber();
+        // récupérer info entreprise
+        const phoneContact = defaultContactInfos.find(c => c.type === "phone")?.value || defaultContactInfos.find(c => c.type === "whatsapp")?.value || "";
+        const emailContact = defaultContactInfos.find(c => c.type === "email")?.value || "";
+        const location = defaultContactInfos.find(c => c.type === "location")?.value || "";
+
+        // génération locale du QR en data URL (offline)
+        let qrUrl: string | undefined;
+        try {
+            qrUrl = await QRCode.toDataURL(num, { width: 300, margin: 1 });
+        } catch (err) {
+            const msg = (err as any)?.message ? `: ${(err as any).message}` : '';
+            setSubmitError(`Impossible de générer le QR code${msg}`);
+            toast.error(`Impossible de générer le QR code${msg}`);
+            qrUrl = undefined;
+        }
+
+        // Construire HTML imprimable
+        const style = `
+            <style>
+                body { font-family: Arial, sans-serif; color: #222; padding: 20px; }
+                .page { page-break-after: always; width: 210mm; max-width: 100%; margin: 0 auto; }
+                .center { text-align: center; }
+                .qr { width: 300px; height: 300px; margin: 20px auto; }
+                .company { margin-bottom: 12px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+                th, td { padding: 8px; border: 1px solid #ddd; }
+                tfoot td { font-weight: bold; }
+                @media print { .page { page-break-after: always; } }
+            </style>
+        `;
+
+        // facture HTML (page 2) - on reconstruit simplement depuis l'état
+        const nightsLocal = nights;
+        const roomsHtml = Object.entries(form.rooms).map(([ _k, r ]) => {
+            let price = PRICE_VENT;
+            let confort = 'VENTILÉ';
+            if (r.type === 'suite') {
+                price = PRICE_SUITE;
+                confort = 'CLIM INCLUS';
+            } else if (r.clim === 'oui') {
+                price = PRICE_CLIM;
+                confort = 'CLIM';
+            }
+            return `<tr><td>${r.type.toUpperCase()} ${confort}<br/><small>${r.adults} Adulte(s) / ${r.children} Enfant(s)</small></td><td class="text-center">${nightsLocal}</td><td class="text-end">${formatPrice(price * nightsLocal)} FCFA</td></tr>`;
+        }).join('');
+
+        const extrasHtml = form.extras.map(name => {
+            const ex = extrasList.find(e => e.name === name);
+            const unit = ex?.price ?? 0;
+            const qty = Math.max(1, extrasQty[name] ?? totalPeople);
+            const tot = unit * qty;
+            return `<tr><td colspan="2">Extra : ${name} (${qty} x ${formatPrice(unit)} FCFA)</td><td class="text-end">${formatPrice(tot)} FCFA</td></tr>`;
+        }).join('');
+
+        const totalLocal = total;
+
+        const invoiceHtml = `
+            <div class="page">
+                <h2 class="center">FACTURE PROFORMA</h2>
+                <div><strong>Client :</strong> ${form.customer.name} ${form.customer.email ? `| ${form.customer.email}` : ''} | <strong>Période :</strong> ${nightsLocal} nuit(s)</div>
+                <table>
+                    <thead><tr><th>Désignation</th><th>Nuits</th><th class="text-end">HT</th></tr></thead>
+                    <tbody>
+                        ${roomsHtml}
+                        ${extrasHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr><td colspan="2" class="text-end">TOTAL HT</td><td class="text-end">${totalLocal.toLocaleString()} FCFA</td></tr>
+                        <tr><td colspan="2" class="text-end">TVA (0%)</td><td class="text-end">0 FCFA</td></tr>
+                        <tr><td colspan="2" class="text-end">TOTAL TTC</td><td class="text-end">${totalLocal.toLocaleString()} FCFA</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+
+        const firstPageHtml = `
+            <div class="page center">
+                <div class="company">
+                    <h1>Réservation</h1>
+                    <div>${phoneContact ? `Tel: ${phoneContact}` : ''} ${emailContact ? ` | Email: ${emailContact}` : ''}</div>
+                    <div>${location}</div>
+                </div>
+                <div><strong>Réservation N° :</strong> ${num}</div>
+                <div class="qr"><img src="${qrUrl}" alt="QR" style="width:300px;height:300px;"/></div>
+                <div><strong>Client :</strong> ${form.customer.name}</div>
+                <div><strong>Période :</strong> ${form.arrival ? form.arrival.toLocaleString() : 'N/A'} - ${form.departure ? form.departure.toLocaleString() : 'N/A'}</div>
+                <div><strong>Nombre total de personnes :</strong> ${totalPeople}</div>
+            </div>
+        `;
+
+        const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Impression réservation</title>${style}</head><body>${firstPageHtml}${invoiceHtml}</body></html>`;
+
+        const w = window.open('', '_blank', 'noopener,noreferrer');
+        if (!w) {
+            setSubmitError("Impossible d'ouvrir la fenêtre d'impression (popup bloquée)");
+            toast.error("Impossible d'ouvrir la fenêtre d'impression (popup bloquée)");
+            return;
+        }
+        // éviter document.write (déprécié) : générer un Blob URL et naviguer la nouvelle fenêtre vers ce blob
+        const blob = new Blob([html], { type: 'text/html' });
+        w.location.href = URL.createObjectURL(blob);
+        // attendre que le contenu soit chargé avant d'imprimer
+        w.focus();
+        setTimeout(() => {
+            try { w.print(); }
+            catch (err) { const msg = String(err); setSubmitError(`Erreur lors de l'impression: ${msg}`); toast.error(`Erreur d'impression: ${msg}`); }
+        }, 500);
+    };
+
+    // Génère dynamiquement le texte du message WhatsApp (utilise form, extrasQty, totalPeople, nights, total)
+    function generateWhatsappMessage(num: string): string {
+        const arrivalStr = form.arrival ? form.arrival.toLocaleString() : "N/A";
+        const departureStr = form.departure ? form.departure.toLocaleString() : "N/A";
+        let msg = `*NOUVELLE RÉSERVATION - ${num}*\n\n`;
+        msg += `👤 *Client :* ${form.customer.name}\n`;
+        msg += `📞 *Tel :* ${form.customer.phone}\n`;
+        if (form.customer.email) msg += `📧 *Email :* ${form.customer.email}\n`;
+        msg += `\n📅 *Séjour :* Du ${arrivalStr} au ${departureStr}\n`;
+        msg += `🌙 *Nuits :* ${nights}\n`;
+        msg += `👥 *Nombre total de personnes :* ${Math.max(0, totalPeople)}\n\n`;
+        msg += `🏨 *Détails des chambres :*\n`;
+        Object.values(form.rooms).forEach((r, i) => {
+            const confort = r.type === 'suite' ? 'CLIM INCLUS' : (r.clim === 'oui' ? 'CLIM' : 'VENTILÉ');
+            msg += `- Chambre ${i + 1}: ${r.type.toUpperCase()} (${confort}) - ${r.adults}A/${r.children}E\n`;
+        });
+        if (form.extras.length > 0) {
+            msg += `\n✨ *Extras :*\n`;
+            form.extras.forEach(name => {
+                const ex = extrasList.find(e => e.name === name);
+                const unit = ex?.price ?? 0;
+                const qty = Math.max(1, extrasQty[name] ?? totalPeople);
+                const totalEx = unit * qty;
+                msg += `- ${name} : ${qty} x ${unit.toLocaleString()} FCFA = ${totalEx.toLocaleString()} FCFA\n`;
+            });
+        }
+        msg += `\n💰 *TOTAL TTC :* ${total.toLocaleString()} FCFA`;
+        return msg;
+    }
+
+    // ----- Submit : envoie à l'API et ouvre WhatsApp -----
+    const submitReservation = async (): Promise<string> => {
+         // s'assurer d'un numéro unique partagé
+        const num = reservationNumber ?? generateReservationNumber();
+        setReservationNumber(num);
+         // Préparer payload minimal (extras détaillés: unitPrice, qty, total)
+         const extrasDetailed = form.extras.map(name => {
+            const ex = extrasList.find(e => e.name === name);
+            const unit = ex?.price ?? 0;
+            const qty = Math.max(1, extrasQty[name] ?? totalPeople);
+            return { name, unitPrice: unit, qty, total: unit * qty };
+        });
+
+         const payload = {
+             reservationNumber: num,
+             customer: form.customer,
+             arrival: form.arrival ? form.arrival.toISOString() : null,
+             departure: form.departure ? form.departure.toISOString() : null,
+             nights: nights,
+             rooms: form.rooms,
+             extras: extrasDetailed,
+             total: total,
+             createdAt: new Date().toISOString(),
+         } as const;
+
+        // Envoi vers votre API (remplacez URL par votre endpoint)
+        const apiUrl = "/api/reservations"; // <-- adapter si nécessaire
+        try {
+            await axios.post(apiUrl, payload, { headers: { "Content-Type": "application/json" } });
+            setSubmitError(null);
+            toast.success("Réservation envoyée au serveur");
+        } catch (err) {
+            const msg = (err as any)?.message ? ` - ${(err as any).message}` : '';
+            const text = `Impossible d'enregistrer la réservation sur le serveur. Elle sera toujours envoyée par WhatsApp.${msg}`;
+            setSubmitError(text);
+            toast.warn(text);
+        }
+
+        // Construire message WhatsApp via la fonction générique et ouvrir wa.me
+        const hotelContact = defaultContactInfos.find(c => c.type === "whatsapp") ?? defaultContactInfos.find(c => c.link?.includes("wa.me"));
+        let rawPhone = hotelContact?.number || hotelContact?.link?.replace(/.*wa.me\//, "") || "2250000000000";
+        const phoneNumber = rawPhone.replace(/\D/g, "");
+        const whatsappMessage = generateWhatsappMessage(num);
+        const encodedMessage = encodeURIComponent(whatsappMessage);
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+        if (typeof window !== "undefined") window.open(whatsappUrl, "_blank");
+        toast.success("Message WhatsApp préparé (nouvel onglet)");
+
+        return num;
+    };
+
+    return (
+        <div className="container mt-5 pb-5">
+            <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
+            <div className="card shadow mx-auto" style={{ maxWidth: 850 }}>
+                <div className="card-body">
+                    <h3 className="text-center mb-4 text-primary font-weight-bold">SYSTÈME DE RÉSERVATION</h3>
+
+                    {/* STEP 0 : DATES */}
+                    {step === 0 && (
+                        <div>
+                            <h5>1. Dates et Chambres</h5>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <label htmlFor="arrival">Arrivée (+2h min si aujourd'hui)</label>
+                                    <Flatpickr id="arrival" className="form-control" value={form.arrival ?? undefined} onChange={([d]) => setForm(prev => ({ ...prev, arrival: d ?? null }))} options={{ enableTime: true, minDate: 'today', dateFormat: "d/m/Y H:i", time_24hr: true }} />
+                                    {errorsStep1.arrival && <small className="text-danger">{errorsStep1.arrival}</small>}
+                                </div>
+                                <div className="col-md-6">
+                                    <label htmlFor="departure">Départ</label>
+                                    <Flatpickr id="departure" className="form-control" value={form.departure ?? undefined} onChange={([d]) => setForm(prev => ({ ...prev, departure: d ?? null }))} options={{ enableTime: true, minDate: form.arrival ?? 'today', dateFormat: "d/m/Y H:i", time_24hr: true }} />
+                                    {errorsStep1.departure && <small className="text-danger">{errorsStep1.departure}</small>}
+                                </div>
+                            </div>
+                            <label htmlFor="numRooms">Nombre de chambres</label>
+                            <input id="numRooms" type="number" className="form-control mb-3" value={form.numRooms} onChange={e => setForm(prev => ({ ...prev, numRooms: Number(e.target.value) }))} />
+                            <div className="text-end"><button className="btn btn-primary" onClick={validateStep1}>Suivant</button></div>
+                        </div>
+                    )}
+
+                    {/* STEP 1 : DÉTAILS CHAMBRES */}
+                    {step === 1 && (
+                        <div>
+                            <h5>2. Détails des chambres</h5>
+                            {Object.keys(form.rooms).map((key, i) => {
+                                const room = form.rooms[key];
+                                const config = ROOM_TYPES.find(t => t.value === room.type);
+                                return (
+                                    <div key={key} className="border p-3 rounded mb-3 bg-light">
+                                        <h6>Chambre {i + 1}</h6>
+                                        <div className="row g-2">
+                                            <div className="col-md-6">
+                                                <label htmlFor={`${key}-type`} className="visually-hidden">Type de chambre</label>
+                                                <select id={`${key}-type`} className="form-select" value={room.type} onChange={e => handleRoomChange(key, "type", e.target.value)}>
+                                                    <option value="">Type de chambre...</option>
+                                                    {ROOM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                                </select>
+                                                {errorsStep2[key]?.type && <small className="text-danger">{errorsStep2[key].type}</small>}
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label htmlFor={`${key}-clim`} className="visually-hidden">Confort</label>
+                                                {room.type === "suite" ? (
+                                                    <select id={`${key}-clim`} className="form-select bg-white" disabled value="oui"><option value="oui">Climatisation (Inclus)</option></select>
+                                                ) : (
+                                                    <select id={`${key}-clim`} className="form-select" value={room.clim} onChange={e => handleRoomChange(key, "clim", e.target.value)}>
+                                                        <option value="">Confort...</option>
+                                                        <option value="non">Ventilé (20 000 FCFA)</option>
+                                                        <option value="oui">Climatisé (25 000 FCFA)</option>
+                                                    </select>
+                                                )}
+                                                {errorsStep2[key]?.clim && <small className="text-danger">{errorsStep2[key].clim}</small>}
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label htmlFor={`${key}-adults`} className="small">Adultes</label>
+                                                <input id={`${key}-adults`} type="number" min={1} className="form-control" value={room.adults} onChange={e => handleRoomChange(key, "adults", Number(e.target.value))} />
+                                            </div>
+                                            {config?.canHaveChildren && <div className="col-md-6"><label htmlFor={`${key}-children`} className="small">Enfants</label><input id={`${key}-children`} type="number" min={0} className="form-control" value={room.children} onChange={e => handleRoomChange(key, "children", Number(e.target.value))} /></div>}
+                                            {errorsStep2[key]?.cap && <div className="col-12"><small className="text-danger fw-bold">{errorsStep2[key].cap}</small></div>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div className="d-flex justify-content-between"><button className="btn btn-secondary" onClick={() => setStep(0)}>Retour</button><button className="btn btn-primary" onClick={validateStep2}>Suivant</button></div>
+                        </div>
+                    )}
+
+                    {/* STEP 2 : EXTRAS */}
+                    {step === 2 && (
+                        <div>
+                            <h5>3. Extras</h5>
+                            <div className="row g-2">
+                                {extrasList.map(ex => (
+                                    <div className="col-md-6" key={ex.name}>
+                                        <div className="form-check border p-2 rounded">
+                                            <input id={`extra-${ex.name}`} className="form-check-input ms-1" type="checkbox" checked={form.extras.includes(ex.name)} onChange={() => toggleExtra(ex.name)} />
+                                            <label htmlFor={`extra-${ex.name}`} className="form-check-label ms-4">{ex.name} (+{ex.price} FCFA)</label>
+                                            {form.extras.includes(ex.name) && (
+                                                <div className="mt-2">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        className="form-control form-control-sm"
+                                                        value={extrasQty[ex.name] ?? 1}
+                                                        onChange={e => setExtraQty(ex.name, Number(e.target.value))}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="d-flex justify-content-between mt-3"><button className="btn btn-secondary" onClick={() => setStep(1)}>Retour</button><button className="btn btn-primary" onClick={() => setStep(3)}>Suivant</button></div>
+                        </div>
+                    )}
+
+                    {/* STEP 3 : CLIENT */}
+                    {step === 3 && (
+                        <div>
+                            <h5>4. Informations Client</h5>
+                            <label htmlFor="client-name" className="visually-hidden">Nom complet</label>
+                            <input id="client-name" type="text" className="form-control mb-2" placeholder="Nom complet" value={form.customer.name} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, name: e.target.value } }))} />
+                            {errorsStep4.name && <small className="text-danger">{errorsStep4.name}</small>}
+
+                            <label htmlFor="client-email" className="visually-hidden">Email</label>
+                            <input id="client-email" type="email" className="form-control mb-2" placeholder="Email" value={form.customer.email} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, email: e.target.value } }))} />
+                            {errorsStep4.email && <small className="text-danger">{errorsStep4.email}</small>}
+
+                            <label htmlFor="client-phone" className="visually-hidden">Téléphone</label>
+                            <input id="client-phone" type="tel" className="form-control mb-3" placeholder="Téléphone" value={form.customer.phone} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, phone: e.target.value } }))} />
+                            {errorsStep4.phone && <small className="text-danger">{errorsStep4.phone}</small>}
+                            <div className="form-check mb-3"><input id="client-whatsapp" type="checkbox" className="form-check-input" checked={form.customer.whatsapp} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, whatsapp: e.target.checked } }))} /><label htmlFor="client-whatsapp" className="form-check-label">Numéro WhatsApp</label></div>
+                            <div className="d-flex justify-content-between"><button className="btn btn-secondary" onClick={() => setStep(2)}>Retour</button><button className="btn btn-primary" onClick={validateStep4}>Générer Facture</button></div>
+                        </div>
+                    )}
+
+                    {/* STEP 4 : FACTURE */}
+                    {step === 4 && (
+                        <div>
+                            <div className="border p-4 bg-white shadow-sm">
+                                <h4 className="text-center mb-4">FACTURE PROFORMA</h4>
+                                <div className="mb-3">
+                                    <strong>Client :</strong> {form.customer.name} {form.customer.email ? `| ${form.customer.email}` : ''} | <strong>Période :</strong> {nights} nuit(s)
+                                    {reservationNumber && <div><strong>Réservation N° :</strong> {reservationNumber}</div>}
+                                    <div><strong>Nombre total de personnes :</strong> {Math.max(0, totalPeople)}</div>
+                                </div>
+                                <table className="table table-bordered">
+                                    <thead className="table-light">
+                                        <tr>
+                                            <th>Désignation</th>
+                                            <th className="text-center">Nuits</th>
+                                            <th className="text-end">HT</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(form.rooms).map(([roomKey, r]) => {
+                                            let pricePerNight = PRICE_VENT;
+                                            let confortLabel = "(VENTILÉ)";
+                                            if (r.type === "suite") { pricePerNight = PRICE_SUITE; confortLabel = "(CLIM INCLUS)"; }
+                                            else if (r.clim === "oui") { pricePerNight = PRICE_CLIM; confortLabel = "(CLIM)"; }
+                                            return (
+                                                <tr key={roomKey}>
+                                                    <td>{r.type.toUpperCase()} {confortLabel}<br/><small className="text-muted">{r.adults} Adulte(s) / {r.children} Enfant(s)</small></td>
+                                                    <td className="text-center">{nights}</td>
+                                                    <td className="text-end">{formatPrice(pricePerNight * nights)} FCFA</td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {form.extras.map(name => {
+                                            const ex = extrasList.find(e => e.name === name);
+                                            const unit = ex?.price ?? 0;
+                                            const qty = Math.max(1, extrasQty[name] ?? totalPeople);
+                                            const tot = unit * qty;
+                                            return (
+                                                <tr key={name}><td colSpan={2}>Extra : {name} ({qty} x {formatPrice(unit)} FCFA)</td><td className="text-end">{formatPrice(tot)} FCFA</td></tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="fw-bold"><td colSpan={2} className="text-end">TOTAL HT</td><td className="text-end">{total.toLocaleString()} FCFA</td></tr>
+                                        <tr className="fw-bold"><td colSpan={2} className="text-end">TVA (0%)</td><td className="text-end">0 FCFA</td></tr>
+                                        <tr className="table-primary fw-bold text-primary"><td colSpan={2} className="text-end">TOTAL TTC</td><td className="text-end">{total.toLocaleString()} FCFA</td></tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <div className="d-flex justify-content-between mt-4">
+                                <button className="btn btn-secondary" onClick={() => setStep(3)} disabled={isSubmitting}>Retour</button>
+                                <button
+                                    className="btn btn-success"
+                                    onClick={async () => {
+                                        if (isSubmitting) return;
+                                        setIsSubmitting(true);
+                                        try {
+                                            const num = await submitReservation();
+                                            await openPrintWindow(num);
+                                        } finally {
+                                            setIsSubmitting(false);
+                                        }
+                                    }}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? "Envoi en cours..." : "Imprimer & Confirmer"}
+                                </button>
+                            </div>
+                            {submitError && <div className="mt-3 alert alert-warning" role="alert">{submitError}</div>}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

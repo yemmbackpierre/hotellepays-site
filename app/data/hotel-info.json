@@ -1,0 +1,18 @@
+{
+  "hotelName": "Hôtel Le Pays",
+  "location": "Sendou, Sénégal",
+  "contacts": {
+    "phone": "+221 33 836 02 76",
+    "email": "contact@hotellepays.com"
+  },
+  "faq": [
+    {
+      "keywords": ["prix", "tarif", "coûte", "chambre"],
+      "answer": "Nos tarifs commencent à 45 000 FCFA pour une chambre standard. Pour une suite, comptez environ 90 000 FCFA."
+    },
+    {
+      "keywords": ["piscine", "baignade"],
+      "answer": "Oui, nous avons une piscine extérieure ouverte de 9h à 20h."
+    }
+  ]
+}

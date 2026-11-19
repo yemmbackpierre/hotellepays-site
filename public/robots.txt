@@ -1,0 +1,5 @@
+User-agent: *
+Disallow:
+Sitemap: https://hotellepays.com/sitemap.xml
+Host: https://hotellepays.com
+

@@ -1,0 +1,121 @@
+"use client";
+
+import React from "react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Navigation } from "swiper/modules";
+import "swiper/css";
+import "swiper/css/navigation";
+
+import { defaultDestinations } from "@/app/types/hotelData";
+
+const DestinationSection: React.FC = () => {
+    return (
+        <section className="service-section-resort section-padding">
+            <div className="container">
+
+                {/* ===== Slider ===== */}
+                <div className="slider-box" style={{ display: "none",}}>
+                    <Swiper
+                        modules={[Navigation]}
+                        navigation={{
+                            prevEl: ".service-slider-prev",
+                            nextEl: ".service-slider-next",
+                        }}
+                        className="swiper service-slider-resort"
+                    >
+                        {defaultDestinations.map((destination) => (
+                            <SwiperSlide key={destination.slug}>
+                                <div className="swiper-slide">
+                                    <div className="image">
+                                        <img
+                                            data-speed=".8"
+                                            src={destination.image}
+                                            alt={destination.name}
+                                        />
+                                    </div>
+                                    <div className="content">
+                                        <h3 className="title text-reveal-anim">
+                                            <span>{destination.name}</span>
+                                            <span
+                                                style={{
+                                                    display: "block",
+                                                    fontSize: "0.7em",
+                                                    fontWeight: 400,
+                                                    opacity: 0.85,
+                                                    color: "black",
+                                                    marginTop: "6px",
+                                                }}
+                                            >
+    {destination.subtitle}
+  </span>
+                                        </h3>
+
+
+                                    </div>
+                                </div>
+                            </SwiperSlide>
+                        ))}
+                    </Swiper>
+
+                    <div className="arry-btn">
+                        <button className="service-slider-prev">
+                        <i className="fa-light fa-angle-left"></i>
+                        </button>
+                        <button className="service-slider-next">
+                            <i className="fa-light fa-angle-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ===== Cards ===== */}
+                <div className="pt-140">
+                    <div className="row justify-content-center">
+                        <div className="col-xl-8">
+                            <div className="section-wrapper text-center mb-50">
+                                <h2 className="section-title text-reveal-anim">
+                                    Nous vous Accompagnons
+                                </h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="row g-4">
+                        {defaultDestinations.map((destination) => (
+                            <div
+                                key={destination.slug}
+                                className="col-lg-6 col-xl-4 col-xxl-3"
+                            >
+                                <div className="service-block-resort tp_fade_bottom">
+                                    <div className="icon">
+                                        <i className={destination.basicInfo[0]?.icon || "flaticon-map"}></i>
+                                    </div>
+
+                                    <h3 className="title">{destination.name}</h3>
+
+                                    <p className="text">
+                                        {destination.description.length > 120
+                                            ? destination.description.slice(0, 120) + "..."
+                                            : destination.description}
+                                    </p>
+
+                                    <a href={destination.link} className="more-btn">
+                                        Voir les détails{" "}
+                                        <i className="fa-light fa-arrow-up-right"></i>
+                                    </a>
+
+                                    <div className="image">
+                                        <img
+                                            src={destination.images?.[0] || destination.image}
+                                            alt={destination.name}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+};
+
+export default DestinationSection;
