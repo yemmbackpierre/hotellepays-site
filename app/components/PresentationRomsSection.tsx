@@ -9,10 +9,15 @@ import "swiper/css/pagination";
 
 import { defaultPresentationRoms, Room } from "@/app/types/hotelData";
 
-// Ajout: type local étendu pour autoriser une propriété optionnelle `beds`
 type ExtendedRoom = Room & { beds?: number[] };
 
-const PresentationRomsSection: React.FC = () => {
+type PresentationRomsSectionProps = {
+    rooms?: ExtendedRoom[];
+};
+
+const PresentationRomsSection: React.FC<PresentationRomsSectionProps> = ({
+    rooms = defaultPresentationRoms,
+}) => {
     // Helper pour afficher la liste des lits (ou un fallback lisible)
     const renderBedsOrDetails = (room: ExtendedRoom) => {
         const icon = (
@@ -77,7 +82,7 @@ const PresentationRomsSection: React.FC = () => {
                                 }}
                                 className="destination-active"
                             >
-                                {defaultPresentationRoms.map((room: ExtendedRoom, index: number) => (
+                                {rooms.map((room: ExtendedRoom, index: number) => (
                                     <SwiperSlide key={index}>
                                         <div
                                             className="destination-bg"

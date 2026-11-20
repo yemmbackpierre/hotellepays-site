@@ -19,7 +19,11 @@ type Slide = {
     videoLink?: string;
 };
 
-const BannerSlider: React.FC = () => {
+type BannerSliderProps = {
+    slides?: Slide[];
+};
+
+const BannerSlider: React.FC<BannerSliderProps> = ({ slides = sliderData }) => {
     const bannerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -55,7 +59,7 @@ const BannerSlider: React.FC = () => {
                     loop={true}
                     className="banner-active"
                 >
-                    {sliderData.map((slide: Slide, index: number) => (
+                    {slides.map((slide: Slide, index: number) => (
                         <SwiperSlide key={index}>
                             <div className="banner-height">
                                 <div

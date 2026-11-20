@@ -1,12 +1,16 @@
 import React from "react";
-import {instagramFeed} from "@/app/types/hotelData";
+import {instagramFeed, InstagramItem} from "@/app/types/hotelData";
 
-const InstagramSection: React.FC = () => {
+type InstagramSectionProps = {
+    items?: InstagramItem[];
+};
+
+const InstagramSection: React.FC<InstagramSectionProps> = ({ items = instagramFeed }) => {
     return (
         <section className="instragram-area">
             <div className="container-fluid gx-4">
                 <div className="row gx-3">
-                    {instagramFeed.map((item, index) => (
+                    {items.map((item, index) => (
                         <div
                             className="col-xl-2 col-lg-4 col-sm-6"
                             key={index}

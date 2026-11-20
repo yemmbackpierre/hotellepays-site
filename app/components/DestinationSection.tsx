@@ -4,9 +4,15 @@ import React from "react";
 import "swiper/css";
 import "swiper/css/navigation";
 
-import { defaultDestinations } from "@/app/types/hotelData";
+import { defaultDestinations, ExploreItem } from "@/app/types/hotelData";
 
-const DestinationSection: React.FC = () => {
+type DestinationSectionProps = {
+    destinations?: ExploreItem[];
+};
+
+const DestinationSection: React.FC<DestinationSectionProps> = ({
+    destinations = defaultDestinations,
+}) => {
     return (
         <section className="service-section-resort section-padding">
             <div className="container">
@@ -21,7 +27,7 @@ const DestinationSection: React.FC = () => {
                 </div>
 
                 <div className="row g-4">
-                    {defaultDestinations.map((destination) => (
+                    {destinations.map((destination) => (
                         <div
                             key={destination.slug}
                             className="col-lg-6 col-xl-4 col-xxl-3"

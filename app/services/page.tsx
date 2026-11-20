@@ -16,7 +16,12 @@ import TestimonialSection from "@/app/components/TestimonialSection";
 import Breadcrumb from "@/app/layouts/Breadcrumb";
 import ServicesSection from "@/app/components/ServicesSection";
 import ServiceSectionWinter from "@/app/components/ServiceSectionWinter";
-export default function Component() {
+import { getSiteContent } from "@/app/lib/siteContent";
+
+export const dynamic = 'force-dynamic';
+
+export default async function Component() {
+    const siteContent = await getSiteContent();
     const tpaths: { name: string; link?: string; }[]=[
         { name: 'Accueil', link: '/' },
         { name: "Services", link:  '' },
@@ -25,8 +30,8 @@ export default function Component() {
 
         <Breadcrumb paths={tpaths} title={"Nos Services"} backgroundImage={'/assets/images/resource/service-island1-3.jpg'} />
         <BackToTop/>
-        <ServiceSectionWinter/>
-        <ServicesSection/>
-        <TestimonialSection/>
+        <ServiceSectionWinter features={siteContent.features} />
+        <ServicesSection services={siteContent.services} />
+        <TestimonialSection testimonials={siteContent.testimonials} />
 
     </>; }

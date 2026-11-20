@@ -1,10 +1,14 @@
 import React from "react";
 import { defaultRooms, Room } from "@/app/types/hotelData";
 
-const RoomSection: React.FC = () => {
+type RoomSectionProps = {
+    rooms?: Room[];
+};
+
+const RoomSection: React.FC<RoomSectionProps> = ({ rooms = defaultRooms }) => {
     return (
         <div className="row">
-            {defaultRooms.map((room: Room, index: number) => (
+            {rooms.map((room: Room, index: number) => (
                 <div
                     key={index}
                     className="col-12 col-sm-6 col-md-4 col-lg-3 mb-4"

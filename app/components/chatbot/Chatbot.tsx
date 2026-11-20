@@ -26,8 +26,8 @@ export default function Chatbot() {
 
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
-    const [messages, setMessages] = useState<Message[]>(() => [
-        { id: uuidv4(), role: 'bot', content: "Bienvenue à l'Hôtel Le Pays. Comment puis-je vous aider aujourd'hui ?" }
+    const [messages, setMessages] = useState<Message[]>([
+        { id: 'welcome-msg', role: 'bot', content: "Bienvenue à l'Hôtel Le Pays. Comment puis-je vous aider aujourd'hui ?" }
     ]);
     const [isLoading, setIsLoading] = useState(false);
     const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -84,8 +84,7 @@ export default function Chatbot() {
     `;
 
         try {
-            // Appel API vers endpoint PHP (compatible Apache) placé dans /public/chatbot.php
-            const res = await axios.post('/chatbot.php', {
+            const res = await axios.post('/api/chatbot', {
                 question: input,
                 session_token: sessionToken,
             }, {

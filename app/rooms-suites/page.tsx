@@ -16,7 +16,12 @@ import TestimonialSection from "@/app/components/TestimonialSection";
 import Breadcrumb from "@/app/layouts/Breadcrumb";
 import SuitesSection from "@/app/components/SuitesSection";
 import RoomSection from "@/app/components/RoomSection";
-export default function Component() {
+import { getSiteContent } from "@/app/lib/siteContent";
+
+export const dynamic = 'force-dynamic';
+
+export default async function Component() {
+    const siteContent = await getSiteContent();
     const tpaths: { name: string; link?: string; }[]=[
         { name: 'Accueil', link: '/' },
         { name: "Chambres & suites", link:  '' },
@@ -25,8 +30,8 @@ export default function Component() {
 
     <Breadcrumb paths={tpaths} title={"Chambres et suites"} backgroundImage={'/assets/images/rooms/room-bg.jpg'} />
     <BackToTop/>
-    <SuitesSection/>
-    <RoomSection/>
-    <TestimonialSection/>
+    <SuitesSection suites={siteContent.suites} />
+    <RoomSection rooms={siteContent.rooms} />
+    <TestimonialSection testimonials={siteContent.testimonials} />
 
 </>; }

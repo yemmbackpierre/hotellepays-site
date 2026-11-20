@@ -1,11 +1,15 @@
 import React from "react";
 import {Service, serviceData} from "@/app/types/hotelData";
 
-const ServicesSection: React.FC = () => {
+type ServicesSectionProps = {
+    services?: Service[];
+};
+
+const ServicesSection: React.FC<ServicesSectionProps> = ({ services = serviceData }) => {
     return (
         <section className="service-section-resort pt-120 pb-120 px-5">
             <div className="row g-4">
-                {serviceData.map((service: Service, index: number) => (
+                {services.map((service: Service, index: number) => (
                     <div key={index} className="col-lg-3">
                         <div className="service-block-resort tp_fade_bottom">
                             <div className="icon">

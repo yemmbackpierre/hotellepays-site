@@ -3,14 +3,17 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { debugLog, debugWarn, defaultPosts } from "@/app/types/hotelData";
+import { debugLog, debugWarn, defaultPosts, BlogPost } from "@/app/types/hotelData";
 import Breadcrumb from "@/app/layouts/Breadcrumb";
 import BlogDetails from "@/app/components/BlogDetails";
+import { getSiteContent } from "@/app/lib/siteContent";
+
+export const dynamic = 'force-dynamic';
 
 //
 // 🔹 NORMALIZE SLUG
 //
-const normalizeSlug = (s?: any) => {
+const normalizeSlug = (s?: unknown) => {
     if (!s) return "";
     try {
         return decodeURIComponent(String(s)).replace(/\/+$/, "").toLowerCase();
@@ -33,7 +36,7 @@ const slugify = (s?: string) => {
         .replace(/[^a-z0-9]+/g, '-');
 };
 
-const findPostBySlug = (slug: any) => {
+const findPostBySlug = (slug: unknown, postsList: BlogPost[] = defaultPosts) => {
     debugLog("🔎 INPUT SLUG:", slug);
 
     const norm = normalizeSlug(slug);
@@ -41,14 +44,14 @@ const findPostBySlug = (slug: any) => {
 
     debugLog(
         "📚 ALL AVAILABLE SLUGS:",
-        defaultPosts.map(p => ({
+        postsList.map(p => ({
             slug: p.slug,
             link: p.link,
             normalized: normalizeSlug(p.slug || p.link?.split("/").pop())
         }))
     );
 
-    let found = defaultPosts.find((p, index) => {
+    let found = postsList.find((p, index) => {
         debugLog(`\n📦 POST #${index}`, p);
 
         const rawSlug = p.slug || p.link || "";
@@ -85,7 +88,7 @@ const findPostBySlug = (slug: any) => {
     if (!found && norm) {
         const normSimple = slugify(norm);
         debugLog("Fallback slugify norm:", normSimple);
-        found = defaultPosts.find(p => {
+        found = postsList.find(p => {
             const cand = slugify(normalizeSlug(p.slug || p.link || p.title));
             return cand === normSimple;
         });
@@ -99,9 +102,10 @@ const findPostBySlug = (slug: any) => {
 // ✅ SEO
 //
 // 🔹 Ta fonction custom (inchangée)
-export async function generateblogMetadata({ params }: any): Promise<Metadata> {
-    const { slug: postSlug } = params || {};
-    const post = findPostBySlug(postSlug);
+export async function generateblogMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+    const { slug: postSlug } = await params;
+    const siteContent = await getSiteContent();
+    const post = findPostBySlug(postSlug, siteContent.posts);
 
     if (!post) return { title: 'Article - Hôtel Le Pays' } as Metadata;
 
@@ -136,7 +140,7 @@ export async function generateblogMetadata({ params }: any): Promise<Metadata> {
 }
 
 // ✅ Obligatoire pour Next.js
-export async function generateMetadata(props: any): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     return generateblogMetadata(props);
 }
 
@@ -173,7 +177,8 @@ export default async function Component({ params }: { readonly params: Promise<{
     debugLog("Params:", resolvedParams);
     debugLog("SLUG:", slug);
 
-    const post = findPostBySlug(slug);
+    const siteContent = await getSiteContent();
+    const post = findPostBySlug(slug, siteContent.posts);
 
     if (!post) {
         notFound();

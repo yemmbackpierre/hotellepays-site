@@ -2589,7 +2589,7 @@ export const extrasList = [
 
 // Données par défaut
 export const defaultTestimonials: Testimonial[] = testimonials;
-export const LOCAL_APP_API_KEY = 'API_KEYzaSyCv8J2eUh4F44wQfmQfNVbcvcBpu0JcDKY_auth_token';
+export const LOCAL_APP_API_KEY = process.env.LOCAL_APP_API_KEY || '';
 
 export const currencies :  Currency[] = [
     {

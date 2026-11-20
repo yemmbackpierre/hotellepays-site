@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from "next/link";
 import { suggestKeywords } from '@/app/lib/seo';
-import {defaultPosts} from "@/app/types/hotelData";
+import { getSiteContent } from '@/app/lib/siteContent';
+
+export const dynamic = 'force-dynamic';
 
 const title = 'Articles de Blog — Hôtel Le Pays, Sendou (Dakar)';
 const description = 'Explorez les derniers articles sur le tourisme, les attractions locales, et plus encore autour de Sendou et du Sénégal.';
@@ -12,9 +14,10 @@ export const metadata: Metadata = {
     keywords: suggestKeywords({ title, description })
 };
 
-export default function Page() {
+export default async function Page() {
     // Utilisation des données d'articles
-    const articles = defaultPosts;
+    const siteContent = await getSiteContent();
+    const articles = siteContent.posts;
 
     return (
         <div style={{ padding: 20 }}>
@@ -23,11 +26,9 @@ export default function Page() {
                 {articles.map((article) => (
                     <li key={article.slug}>
                         <Link href={`/blog-details/${article.slug}`}>
-                            <a>
-                                <h3>{article.title}</h3>
-                                <p>{article.excerpt}</p>
-                                <small>{article.date}</small>
-                            </a>
+                            <h3>{article.title}</h3>
+                            <p>{article.excerpt}</p>
+                            <small>{article.date}</small>
                         </Link>
                     </li>
                 ))}

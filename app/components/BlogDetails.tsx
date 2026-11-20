@@ -18,10 +18,12 @@ const BlogDetails = ({ post }: Props) => {
     const [formSubmitted, setFormSubmitted] = useState(false);
     const postauthor = 'Yem Mback Pierre';
 
-    // Pré-calculer la date pour éviter les mismatches
+    // Pré-calculer la date en UTC pour éviter les mismatches SSR/client
     const postDate = new Date(post.date);
-    const day = postDate.getDate();
-    const month = postDate.toLocaleString('default', { month: 'short' });
+    const day = Number.isNaN(postDate.getTime()) ? "" : postDate.getUTCDate();
+    const month = Number.isNaN(postDate.getTime())
+        ? ""
+        : new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' }).format(postDate);
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();

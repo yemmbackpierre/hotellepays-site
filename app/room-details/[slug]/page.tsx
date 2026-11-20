@@ -1,12 +1,15 @@
 // app/room-details/[slug]/page.tsx
 import React from "react";
 import { notFound } from "next/navigation";
-import { defaultRooms, defaultPresentationRoms, defaultSuites, debugLog, debugWarn } from "@/app/types/hotelData";
+import { defaultRooms, defaultPresentationRoms, defaultSuites, debugLog, Room } from "@/app/types/hotelData";
 import Breadcrumb from "@/app/layouts/Breadcrumb";
 import RoomDetails from "@/app/components/RoomDetails";
+import { getSiteContent } from "@/app/lib/siteContent";
+
+export const dynamic = 'force-dynamic';
 
 // 🔹 NORMALIZE SLUG
-const normalizeSlug = (s?: any) => {
+const normalizeSlug = (s?: unknown) => {
     if (!s) return "";
     try {
         return decodeURIComponent(String(s)).replace(/\/+$/, "").toLowerCase();
@@ -17,13 +20,13 @@ const normalizeSlug = (s?: any) => {
 };
 
 // 🔹 FIND ROOM
-const findRoomBySlug = (slug: any) => {
+const findRoomBySlug = (slug: unknown, roomsList: Room[]) => {
     debugLog("🔎 INPUT SLUG:", slug);
 
     const norm = normalizeSlug(slug);
     debugLog("✅ NORMALIZED INPUT SLUG:", norm);
 
-    const allRooms = [...defaultRooms, ...defaultPresentationRoms, ...defaultSuites];
+    const allRooms = roomsList;
 
     debugLog(
         "📚 ALL AVAILABLE ROOM SLUGS:",
@@ -50,9 +53,11 @@ const findRoomBySlug = (slug: any) => {
 };
 
 // ✅ METADATA
-export async function generateRoomMetadata({ params }: any) {
-    const { slug: roomSlug } = params || {};
-    const room = findRoomBySlug(roomSlug);
+export async function generateRoomMetadata({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug: roomSlug } = await params;
+    const siteContent = await getSiteContent();
+    const allRooms = [...siteContent.rooms, ...siteContent.presentationRooms, ...siteContent.suites];
+    const room = findRoomBySlug(roomSlug, allRooms);
 
     if (!room) return { title: "Chambre - Hôtel Le Pays" };
 
@@ -72,12 +77,12 @@ export async function generateRoomMetadata({ params }: any) {
     };
 }
 
-export async function generateMetadata(props: any) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
     return generateRoomMetadata(props);
 }
 
-// ✅ STATIC EXPORT
-export const dynamicParams = false;
+// ✅ DYNAMIC PARAMS
+export const dynamicParams = true;
 
 export async function generateStaticParams() {
     const allRooms = [...defaultRooms, ...defaultPresentationRoms, ...defaultSuites];
@@ -92,11 +97,14 @@ export async function generateStaticParams() {
 
 // ✅ PAGE COMPONENT
 export default async function Component({ params }: { params: Promise<{ slug: string }> }) {
-    const { slug } = await params;
-    debugLog("Params:", params);
+    const resolvedParams = await params;
+    const { slug } = resolvedParams;
+    debugLog("Params:", resolvedParams);
     debugLog("SLUG:", slug);
 
-    const room = findRoomBySlug(slug);
+    const siteContent = await getSiteContent();
+    const allRooms = [...siteContent.rooms, ...siteContent.presentationRooms, ...siteContent.suites];
+    const room = findRoomBySlug(slug, allRooms);
 
     if (!room) notFound();
 
@@ -138,7 +146,7 @@ export default async function Component({ params }: { params: Promise<{ slug: st
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(roomJsonLd) }} />
             <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
 
-            <RoomDetails roomSlug={room.slug} />
+            <RoomDetails roomSlug={room.slug} roomData={room} allRoomsData={allRooms} />
         </div>
     );
 }

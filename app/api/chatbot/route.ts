@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
-import { LOCAL_APP_API_KEY } from '@/app/types/hotelData'
 
 export async function POST(req: Request) {
     try {
         const body = await req.json()
+        const apiKey = process.env.LOCAL_APP_API_KEY || ''
 
         const response = await axios.post(
             'https://apps.hotellepays.com/api/chatbot',
             {
                 ...body,
-                local_app_api_key: LOCAL_APP_API_KEY, // Utilise ta clé API
+                local_app_api_key: apiKey,
             },
             {
                 headers: {

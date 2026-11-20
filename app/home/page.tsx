@@ -16,6 +16,9 @@ import InstagramSection from "@/app/components/InstagramSection";
 import PresentationRomsSection from "@/app/components/PresentationRomsSection";
 import FoodExploreSection from "@/app/components/FoodExploreSection";
 import { suggestKeywords } from '@/app/lib/seo';
+import { getSiteContent } from '@/app/lib/siteContent';
+
+export const dynamic = 'force-dynamic';
 
 const title = "Hôtel Le Pays — Hôtel 3 étoiles à Sendou (Dakar)";
 const description = "Hôtel Le Pays à Sendou (Dakar) : chambres, suites, restaurant, bar, piscine et salle de réunion. Réservez maintenant au meilleur tarif.";
@@ -26,24 +29,26 @@ export const metadata: Metadata = {
     keywords: suggestKeywords({ title, description })
 }
 
-const HomePage = () => {
+const HomePage = async () => {
+    const siteContent = await getSiteContent();
+
     return (
         <>
 
             <Preloader/>
             <BackToTop/>
-            <BannerSlider/>
+            <BannerSlider slides={siteContent.slider} />
             <CheckoutFormSection/>
-            <AboutSection page="home" />
-            <PresentationRomsSection/>
-            <FeaturesSection/>
-            <GallerySection/>
-            <SuitesSection/>
-            <FoodExploreSection/>
-            <DestinationSection/>
-            <TestimonialSection/>
-            <BlogSection/>
-            <InstagramSection/>
+            <AboutSection data={siteContent.about} page="home" />
+            <PresentationRomsSection rooms={siteContent.presentationRooms} />
+            <FeaturesSection features={siteContent.features} />
+            <GallerySection images={siteContent.gallery} />
+            <SuitesSection suites={siteContent.suites} />
+            <FoodExploreSection items={siteContent.foods} />
+            <DestinationSection destinations={siteContent.destinations} />
+            <TestimonialSection testimonials={siteContent.testimonials} />
+            <BlogSection posts={siteContent.posts} />
+            <InstagramSection items={siteContent.instagram} />
 
         </>
     );

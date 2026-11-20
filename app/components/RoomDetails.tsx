@@ -2,13 +2,13 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { defaultRooms, defaultPresentationRoms, defaultSuites } from "@/app/types/hotelData";
+import { defaultRooms, defaultPresentationRoms, defaultSuites, Room } from "@/app/types/hotelData";
 import ReservationSingleRoomForm from "@/app/components/forms/ReservationSingleRoomForm";
-
-type Room = typeof defaultRooms[number];
 
 type RoomDetailsProps = {
     roomSlug: string;
+    roomData?: Room;
+    allRoomsData?: Room[];
 };
 
 const getIconClass = (icon?: string) => {
@@ -17,10 +17,10 @@ const getIconClass = (icon?: string) => {
     return icon;
 };
 
-const RoomDetails: React.FC<RoomDetailsProps> = ({ roomSlug }) => {
+const RoomDetails: React.FC<RoomDetailsProps> = ({ roomSlug, roomData, allRoomsData }) => {
 
-    const allRooms: Room[] = [...defaultRooms, ...defaultPresentationRoms, ...defaultSuites];
-    const room = allRooms.find(r => r.slug === roomSlug);
+    const allRooms: Room[] = allRoomsData || [...defaultRooms, ...defaultPresentationRoms, ...defaultSuites];
+    const room = roomData || allRooms.find(r => r.slug === roomSlug);
 
     const [currentImage, setCurrentImage] = useState(0);
 
@@ -29,7 +29,7 @@ const RoomDetails: React.FC<RoomDetailsProps> = ({ roomSlug }) => {
             <div className="container" style={{ padding: "100px 20px", textAlign: "center" }}>
                 <h3>Désolé, cette chambre est introuvable.</h3>
                 <Link href="/" className="btn btn-primary mt-3">
-                    Retour à l'accueil
+                    Retour à l&apos;accueil
                 </Link>
             </div>
         );

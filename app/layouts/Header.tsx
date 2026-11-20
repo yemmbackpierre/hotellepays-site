@@ -1,13 +1,18 @@
 "use client";
 
 import React from "react";
-import { defaultheaderData } from "@/app/types/hotelData";
+import Link from "next/link";
+import { defaultheaderData, HeaderDataItem } from "@/app/types/hotelData";
 
-function Header() {
-    const headerData = defaultheaderData;
+type HeaderProps = {
+    data?: HeaderDataItem;
+};
+
+function Header({ data }: HeaderProps) {
+    const headerData = data || defaultheaderData;
 
     // 🔹 MÊME PRINCIPE DE RENDER QUE TON CODE
-    const renderMenu = (menu: any[], parentKey: string = "") =>
+    const renderMenu = (menu: HeaderDataItem["menu"], parentKey: string = "") =>
         menu.map((item, idx) => {
             const key = parentKey ? `${parentKey}-${idx}` : `${idx}`;
             const hasSub = item.subMenu && item.subMenu.length > 0;
@@ -18,7 +23,7 @@ function Header() {
 
                     {hasSub && (
                         <ul>
-                            {item.subMenu.map((sub: any, subIdx: number) =>
+                            {item.subMenu?.map((sub, subIdx: number) =>
                                 renderMenu([sub], `${key}-${subIdx}`)
                             )}
                         </ul>
@@ -35,9 +40,9 @@ function Header() {
                         <div className="main-box">
                             {/* Logo */}
                             <div className="header-logo">
-                                <a href="/">
+                                <Link href="/">
                                     <img src={headerData.logo} alt="logo" />
-                                </a>
+                                </Link>
                             </div>
 
                             {/* Menu Desktop */}
@@ -82,9 +87,9 @@ function Header() {
                 <nav className="menu-box">
                     <div className="upper-box">
                         <div className="nav-logo">
-                            <a href="/">
+                            <Link href="/">
                                 <img src={headerData.logoMobile} alt="logo" />
-                            </a>
+                            </Link>
                         </div>
                         <div className="close-btn">
                             <i className="icon fa fa-times"></i>
@@ -148,9 +153,9 @@ function Header() {
                     <div className="auto-container">
                         <div className="inner-container d-flex justify-content-between align-items-center">
                             <div className="logo">
-                                <a href="/">
+                                <Link href="/">
                                     <img src={headerData.logoSticky} alt="sticky logo" />
-                                </a>
+                                </Link>
                             </div>
                             <div className="nav-outer">
                                 <nav className="main-menu">

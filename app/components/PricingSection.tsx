@@ -4,12 +4,16 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Pricing, Pricings } from "@/app/types/hotelData";
 
-const PricingSection: React.FC = () => {
+type PricingSectionProps = {
+    pricings?: Pricing[];
+};
+
+const PricingSection: React.FC<PricingSectionProps> = ({ pricings = Pricings }) => {
     return (
         <section className="pricing-section-four">
             <div className="auto-container">
                 <div className="row">
-                    {Pricings.map((room: Pricing, index: number) => (
+                    {pricings.map((room: Pricing, index: number) => (
                         <motion.div
                             key={room.title} // clé unique recommandée plutôt que index
                             className="pricing-block-four col-md-6 col-lg-4"

@@ -1,5 +1,4 @@
 import React from "react";
-import Head from "next/head";
 import { AboutData, defaultAboutData } from "@/app/types/hotelData";
 
 type AboutProps = {
@@ -9,44 +8,11 @@ type AboutProps = {
 
 const AboutSection: React.FC<AboutProps> = ({ data, page = "home" }) => {
     const aboutInfo = { ...defaultAboutData, ...data };
-    const seo = aboutInfo?.seo;
     const isHome = page === "home";
     const isAbout = page === "about";
 
     return (
         <>
-            {/* SEO META TAGS */}
-            {seo && (
-                <Head>
-                    <title>{seo.metaTitle}</title>
-                    <meta name="description" content={seo.metaDescription} />
-                    <meta name="keywords" content={seo.keywords?.join(", ")} />
-                    <meta name="robots" content={seo.robots} />
-                    <meta name="author" content={seo.author} />
-
-                    {/* Open Graph */}
-                    <meta property="og:title" content={seo.openGraph?.title} />
-                    <meta property="og:description" content={seo.openGraph?.description} />
-                    <meta property="og:url" content={seo.openGraph?.url} />
-                    <meta property="og:type" content={seo.openGraph?.type} />
-                    <meta property="og:image" content={seo.openGraph?.image} />
-
-                    {/* Twitter */}
-                    <meta name="twitter:card" content={seo.twitter?.card} />
-                    <meta name="twitter:title" content={seo.twitter?.title} />
-                    <meta name="twitter:description" content={seo.twitter?.description} />
-                    <meta name="twitter:image" content={seo.twitter?.image} />
-
-                    {/* Schema.org */}
-                    {seo.schema && (
-                        <script
-                            type="application/ld+json"
-                            dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.schema) }}
-                        />
-                    )}
-                </Head>
-            )}
-
             <section className="about-area position-relative z-1">
                 <div className="container">
                     <div className="row align-items-center">

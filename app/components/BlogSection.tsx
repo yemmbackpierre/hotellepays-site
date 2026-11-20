@@ -57,8 +57,7 @@ const BlogSection: React.FC<BlogSectionProps> = ({
                                 loop={true}
                                 className="swiper-container blog-active"
                             >
-                                <div className="swiper-wrapper">
-                                    {posts.map((post, idx) => (
+                                {posts.map((post, idx) => (
                                         <SwiperSlide key={idx} className="blog-box swiper-slide">
                                             <div className="image-box">
                                                 {/* ⚠️ doublon d’image conservé volontairement */}
@@ -107,9 +106,8 @@ const BlogSection: React.FC<BlogSectionProps> = ({
                                                     </a>
                                                 </div>
                                             </div>
-                                        </SwiperSlide>
-                                    ))}
-                                </div>
+                                    </SwiperSlide>
+                                ))}
                             </Swiper>
                         </div>
                     </div>

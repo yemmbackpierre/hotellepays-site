@@ -19,7 +19,12 @@ import FanfactSection from "@/app/components/FanfactSection";
 import ServicesSection from "@/app/components/ServicesSection";
 import Breadcrumb from "@/app/layouts/Breadcrumb";
 import PricingSection from "@/app/components/PricingSection";
-export default function Component() {
+import { getSiteContent } from "@/app/lib/siteContent";
+
+export const dynamic = 'force-dynamic';
+
+export default async function Component() {
+    const siteContent = await getSiteContent();
     const tpaths: { name: string; link?: string; }[]=[
         { name: 'Accueil', link: '/' },
         { name: 'Nos tarifs', link:  '' },
@@ -28,6 +33,6 @@ export default function Component() {
 
     <Breadcrumb paths={tpaths} title={"À propos de notre grille tarifaire"} backgroundImage={'/assets/images/resource/page-title-bg.png'} />
     <BackToTop/>
-    <PricingSection/>
-    <TestimonialSection/>
+    <PricingSection pricings={siteContent.pricings} />
+    <TestimonialSection testimonials={siteContent.testimonials} />
 </>; }

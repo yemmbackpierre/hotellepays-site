@@ -86,12 +86,11 @@ function applyPrefillData(data: any, setFormFn: (updater: any) => void, setExtra
 // Hook utilitaire pour gérer la devise depuis localStorage (extrait pour réduire la complexité de ReservationForm)
 function useCurrencyCode() {
     const STORAGE_KEY = 'lepays_currency';
-    const [currencyCode, setCurrencyCode] = useState<string>(() => {
-        if (typeof window === 'undefined') return 'XOF';
-        return localStorage.getItem(STORAGE_KEY) || 'XOF';
-    });
+    const [currencyCode, setCurrencyCode] = useState<string>('XOF');
     useEffect(() => {
         if (typeof window === 'undefined') return;
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) setCurrencyCode(stored);
         const handler = () => setCurrencyCode(localStorage.getItem(STORAGE_KEY) || 'XOF');
         window.addEventListener('storage', handler);
         return () => window.removeEventListener('storage', handler);
@@ -137,6 +136,11 @@ export default function ReservationForm() {
 
     // devise (utilise le hook extrait) - on n'utilise que "currency" ici
     const { currency } = useCurrencyCode();
+    const [minArrivalStr, setMinArrivalStr] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        setMinArrivalStr(toDatetimeLocal(new Date(Date.now() + MIN_ADVANCE_HOURS * 60 * 60 * 1000)));
+    }, []);
 
     // Conversion et formatage selon la devise sélectionnée.
     // Les montants sources sont en XOF (FCFA).
@@ -760,7 +764,7 @@ export default function ReservationForm() {
                                         className="form-control"
                                         value={form.arrival ? toDatetimeLocal(form.arrival) : ''}
                                         onChange={e => setForm(prev => ({ ...prev, arrival: parseDatetimeLocal(e.target.value) }))}
-                                        min={toDatetimeLocal(new Date(Date.now() + MIN_ADVANCE_HOURS * 60 * 60 * 1000))}
+                                        min={minArrivalStr}
                                     />
                                     {errorsStep1.arrival && <small className="text-danger">{errorsStep1.arrival}</small>}
                                 </div>

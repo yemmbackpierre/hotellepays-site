@@ -1,8 +1,10 @@
 // app/room-details/page.tsx
 import type { Metadata } from 'next';
 import Link from "next/link";
-import { defaultRooms, defaultPresentationRoms, defaultSuites } from "@/app/types/hotelData";
 import { suggestKeywords } from '@/app/lib/seo';
+import { getSiteContent } from '@/app/lib/siteContent';
+
+export const dynamic = 'force-dynamic';
 
 const title = 'Chambres — Hôtel Le Pays, Sendou (Dakar)';
 const description = 'Liste des chambres et suites disponibles à l\'Hôtel Le Pays à Sendou. Trouvez la chambre idéale proche de Rufisque et Bargny.';
@@ -13,8 +15,9 @@ export const metadata: Metadata = {
     keywords: suggestKeywords({ title, description })
 }
 
-export default function Page() {
-  const rooms = [...defaultRooms, ...defaultPresentationRoms, ...defaultSuites];
+export default async function Page() {
+  const siteContent = await getSiteContent();
+  const rooms = [...siteContent.rooms, ...siteContent.presentationRooms, ...siteContent.suites];
 
 
   return (

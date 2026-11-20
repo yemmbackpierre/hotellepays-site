@@ -1,9 +1,14 @@
 import React from "react";
-import {footerData} from "@/app/types/hotelData";
+import {footerData as defaultFooterData} from "@/app/types/hotelData";
+import type { FooterDataType } from "@/app/lib/siteContent";
 import WhatsappFloatingButton from "@/app/components/WhatsappFloatingButton";
-import Chatbot from "@/app/components/chatbot/Chatbot";
 
-const Footer: React.FC = () => {
+type FooterProps = {
+    data?: FooterDataType;
+};
+
+const Footer: React.FC<FooterProps> = ({ data }) => {
+    const footerData = data || defaultFooterData;
     return (
         <footer className="main-footer footer-style-one">
             <WhatsappFloatingButton />

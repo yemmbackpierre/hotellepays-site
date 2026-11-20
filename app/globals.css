@@ -27,7 +27,8 @@ body {
 /* Bouton WhatsApp flottant */
 .whatsapp-float {
   position: fixed;
-  right: 20px; /* was left: 20px */
+  left: 20px;
+  right: auto;
   bottom: 20px; /* reduced bottom to be visible on mobile */
   width: 60px;
   height: 60px;
@@ -51,7 +52,7 @@ body {
     width: 56px;
     height: 56px;
     font-size: 26px;
-    right: 16px;
+    left: 16px;
     bottom: 16px;
   }
 }
@@ -61,7 +62,7 @@ body {
     width: 52px;
     height: 52px;
     font-size: 24px;
-    right: 12px;
+    left: 12px;
     bottom: 12px;
   }
 }
