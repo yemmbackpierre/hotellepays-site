@@ -1,7 +1,12 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import type { PricingOffer } from '@/app/lib/pricingOffer';
 
-export default function PrefillBadge() {
+type PrefillBadgeProps = {
+    offer?: PricingOffer | null;
+};
+
+export default function PrefillBadge({ offer }: PrefillBadgeProps) {
     const [hasPrefill, setHasPrefill] = useState(false);
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -15,12 +20,21 @@ export default function PrefillBadge() {
         }
     }, []);
 
-    if (!hasPrefill) return null;
+    if (!hasPrefill && !offer) return null;
     return (
-        <div style={{ margin: '12px 0' }}>
-            <span style={{ display: 'inline-block', background: '#e6f7ff', color: '#0275d8', padding: '6px 10px', borderRadius: 6, fontWeight: 600 }}>
-                Prérempli depuis la recherche
-            </span>
+        <div className="container" style={{ position: 'relative', zIndex: 2, marginTop: 12 }}>
+            <div className="d-flex flex-wrap justify-content-center gap-2">
+                {offer && (
+                    <span style={{ display: 'inline-block', background: '#fff8e1', color: '#8a5300', border: '1px solid #f5c56b', padding: '6px 12px', borderRadius: 6, fontWeight: 600 }}>
+                        Offre sélectionnée : {offer.title} — {String(Math.round(offer.price)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} {offer.currency} {offer.per}
+                    </span>
+                )}
+                {hasPrefill && (
+                    <span style={{ display: 'inline-block', background: '#e6f7ff', color: '#0275d8', padding: '6px 10px', borderRadius: 6, fontWeight: 600 }}>
+                        Prérempli depuis la recherche
+                    </span>
+                )}
+            </div>
         </div>
     );
 }

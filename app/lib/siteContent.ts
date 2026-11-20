@@ -32,6 +32,11 @@ import {
   sliderData as defaultSliderData,
   testimonials as defaultTestimonials,
 } from '@/app/types/hotelData';
+import {
+  EmailTemplatesConfig,
+  getDefaultEmailTemplatesConfig,
+  mergeEmailTemplatesConfig,
+} from '@/app/lib/emailTemplates';
 
 export type SliderItem = {
   title: string;
@@ -63,6 +68,7 @@ export interface SiteContent {
   faqs: FAQ[];
   contact: ContactData;
   footer: FooterDataType;
+  emailTemplates: EmailTemplatesConfig;
 }
 
 const CONTENT_FILE_PATH = path.join(process.cwd(), 'app', 'data', 'site-content.json');
@@ -87,6 +93,7 @@ export function getDefaultSiteContent(): SiteContent {
     faqs: defaultFAQData,
     contact: defaultContactData,
     footer: defaultFooterData,
+    emailTemplates: getDefaultEmailTemplatesConfig(),
   });
 }
 
@@ -122,6 +129,7 @@ export async function getSiteContent(): Promise<SiteContent> {
             contact: { ...defaults.footer.contact, ...(saved.footer.contact || {}) },
           }
         : defaults.footer,
+      emailTemplates: mergeEmailTemplatesConfig(defaults.emailTemplates, saved.emailTemplates),
     };
   } catch {
     return defaults;
@@ -143,6 +151,9 @@ export async function saveSiteContent(nextContent: Partial<SiteContent>): Promis
           contact: { ...current.footer.contact, ...(nextContent.footer.contact || {}) },
         }
       : current.footer,
+    emailTemplates: nextContent.emailTemplates
+      ? mergeEmailTemplatesConfig(current.emailTemplates, nextContent.emailTemplates)
+      : current.emailTemplates,
   };
 
   await fs.mkdir(path.dirname(CONTENT_FILE_PATH), { recursive: true });

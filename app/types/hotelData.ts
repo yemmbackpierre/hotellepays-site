@@ -1235,6 +1235,7 @@ export const footerData = {
         { title: "Accueil", link: "/" },
         { title: "A propos", link: "/about" },
         { title: "Réservation", link: "/booking" },
+        { title: "Mon Profil", link: "/profile" },
         { title: "Tarifs", link: "/pricing" },
         { title: "Menu", link: "/menu" },
         { title: "Contact", link: "/contact" },
@@ -1793,7 +1794,7 @@ export const Pricings: Pricing[] = [
             "Réservation de vols en ligne",
             "Réservation de chambres"
         ],
-        link: "/booking/simple-room",
+        link: "/booking/chambre-journee",
     },
     {
         title: "Chambre Nuitée",
@@ -1809,14 +1810,14 @@ export const Pricings: Pricing[] = [
             "Réservation de vols en ligne",
             "Réservation de chambres"
         ],
-        link: "/booking/simple-room",
+        link: "/booking/chambre-nuitee",
     },
     {
         title: "Suite",
         price: 60000,
         currency: "Fr",
         per: "par nuit",
-        name: "double-room",
+        name: "suite",
         features: [
             "Service de navette aller-retour",
             "Piscine",
@@ -1825,7 +1826,7 @@ export const Pricings: Pricing[] = [
             "Réservation de vols en ligne",
             "Réservation de chambres"
         ],
-        link: "/booking/simple-room",
+        link: "/booking/suite",
     },
 ];
 
@@ -2030,6 +2031,7 @@ export const defaultheaderData: HeaderDataItem =  {
             ],
         },
         { title: "Contact", link: "/contact" },
+        { title: "Mon Profil", link: "/profile" },
     ],
 
     button: {

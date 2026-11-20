@@ -34,9 +34,11 @@ import {
   AlertCircle,
   Loader2,
   Menu,
+  Mail,
 } from 'lucide-react';
 import type { AdminSession } from '@/app/lib/adminAuth';
 import type { SiteContent, SliderItem } from '@/app/lib/siteContent';
+import EmailTemplatesEditor from './EmailTemplatesEditor';
 import type {
   BlogPost,
   ContactInfoItem,
@@ -73,7 +75,8 @@ type SectionKey =
   | 'pricings'
   | 'faqs'
   | 'contact'
-  | 'footer';
+  | 'footer'
+  | 'emailTemplates';
 
 interface NavGroup {
   label: string;
@@ -117,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'faqs', title: 'Foire aux questions', icon: <HelpCircle className="w-4 h-4" /> },
       { key: 'contact', title: 'Page Contact', icon: <Phone className="w-4 h-4" /> },
       { key: 'footer', title: 'Pied de page', icon: <PanelBottom className="w-4 h-4" /> },
+      { key: 'emailTemplates', title: "Modèles d'e-mails", icon: <Mail className="w-4 h-4" /> },
     ],
   },
 ];
@@ -2371,6 +2375,16 @@ export default function AdminDashboard({ initialContent, admin }: AdminDashboard
               </div>
             </div>
           </div>
+        );
+      case 'emailTemplates':
+        return (
+          <EmailTemplatesEditor
+            value={content.emailTemplates}
+            footerContact={content.footer.contact}
+            adminEmail={admin.email}
+            onChange={(next) => updateContent('emailTemplates', next)}
+            onNotify={notify}
+          />
         );
     }
   };

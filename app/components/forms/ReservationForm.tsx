@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import {BookingInfos, extrasList, ROOM_TYPES, RoomParams, defaultContactInfos, currencies} from "@/app/types/hotelData";
+import type { PricingOffer } from "@/app/lib/pricingOffer";
+import type { EmailReceiptSummary, StoredReservation } from "@/app/types/reservation";
+import {
+    getStoredUserProfile,
+    saveStoredUserProfile,
+    upsertStoredReservation,
+} from "@/app/lib/reservationClientState";
 import axios from "axios";
 import QRCode from "qrcode";
 import { ToastContainer, toast } from "react-toastify";
@@ -68,18 +76,35 @@ function decodePrefillParam(raw?: string | null) {
 }
 
 // Appliquer les données préfill dans le state du formulaire
-function applyPrefillData(data: any, setFormFn: (updater: any) => void, setExtrasQtyFn: (q: any) => void) {
+function applyPrefillData(
+    data: any,
+    setFormFn: (updater: any) => void,
+    setExtrasQtyFn: (q: any) => void,
+    lockedOffer?: PricingOffer | null
+) {
     const arrivalParsed = data.arrival ? (parseDatetimeLocal(data.arrival) ?? new Date(data.arrival)) : undefined;
     const departureParsed = data.departure ? (parseDatetimeLocal(data.departure) ?? new Date(data.departure)) : undefined;
-    setFormFn((prev: BookingInfos) => ({
-        ...prev,
-        arrival: arrivalParsed ?? prev.arrival,
-        departure: departureParsed ?? prev.departure,
-        numRooms: data.numRooms ? Math.min(10, Math.max(1, Number(data.numRooms))) : prev.numRooms,
-        rooms: data.rooms ? data.rooms : prev.rooms,
-        extras: Array.isArray(data.extras) ? data.extras : prev.extras,
-        customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
-    }));
+    setFormFn((prev: BookingInfos) => {
+        const nextRooms = data.rooms ? { ...data.rooms } : { ...prev.rooms };
+        if (lockedOffer) {
+            const existing = nextRooms.room1;
+            nextRooms.room1 = {
+                type: lockedOffer.roomType,
+                adults: existing?.adults || 1,
+                children: existing?.children || 0,
+                clim: lockedOffer.clim,
+            };
+        }
+        return {
+            ...prev,
+            arrival: arrivalParsed ?? prev.arrival,
+            departure: departureParsed ?? prev.departure,
+            numRooms: data.numRooms ? Math.min(10, Math.max(1, Number(data.numRooms))) : prev.numRooms,
+            rooms: nextRooms,
+            extras: Array.isArray(data.extras) ? data.extras : prev.extras,
+            customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
+        };
+    });
     if (data.extrasQty && typeof data.extrasQty === 'object') setExtrasQtyFn(data.extrasQty);
 }
 
@@ -113,15 +138,21 @@ function getConfortLabel(r: RoomParams): string {
     return 'VENTILÉ';
 }
 
-export default function ReservationForm() {
+export default function ReservationForm({ initialOffer = null }: { initialOffer?: PricingOffer | null }) {
+    const selectedOffer = initialOffer;
     const [step, setStep] = useState(0);
-    const [form, setForm] = useState<BookingInfos>({
-        arrival: null,
-        departure: null,
-        numRooms: 1,
-        rooms: {},
-        extras: [],
-        customer: { name: "", email: "", phone: "", whatsapp: false },
+    const [form, setForm] = useState<BookingInfos>(() => {
+        const initialRooms: Record<string, RoomParams> = initialOffer
+            ? { room1: { type: initialOffer.roomType, adults: 1, children: 0, clim: initialOffer.clim } }
+            : {};
+        return {
+            arrival: null,
+            departure: null,
+            numRooms: 1,
+            rooms: initialRooms,
+            extras: [],
+            customer: { name: "", email: "", phone: "", whatsapp: false },
+        };
     });
 
 
@@ -129,8 +160,10 @@ export default function ReservationForm() {
     const [errorsStep2, setErrorsStep2] = useState<Record<string, Record<string, string>>>({});
     const [errorsStep4, setErrorsStep4] = useState<Record<string, string>>({});
     const [reservationNumber, setReservationNumber] = useState<string | undefined>(undefined);
+    const [isVerifying, setIsVerifying] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [emailReceipt, setEmailReceipt] = useState<EmailReceiptSummary | null>(null);
     // quantités par extra (définies par l'utilisateur)
     const [extrasQty, setExtrasQty] = useState<Record<string, number>>({});
 
@@ -140,6 +173,18 @@ export default function ReservationForm() {
 
     useEffect(() => {
         setMinArrivalStr(toDatetimeLocal(new Date(Date.now() + MIN_ADVANCE_HOURS * 60 * 60 * 1000)));
+        const storedProfile = getStoredUserProfile();
+        if (storedProfile && (storedProfile.name || storedProfile.email || storedProfile.phone)) {
+            setForm(prev => ({
+                ...prev,
+                customer: {
+                    name: prev.customer.name || storedProfile.name || "",
+                    email: prev.customer.email || storedProfile.email || "",
+                    phone: prev.customer.phone || storedProfile.phone || "",
+                    whatsapp: prev.customer.whatsapp || storedProfile.whatsapp || false,
+                },
+            }));
+        }
     }, []);
 
     // Conversion et formatage selon la devise sélectionnée.
@@ -151,11 +196,18 @@ export default function ReservationForm() {
         return currency.code === 'XOF' ? Math.round(target) : Number(target.toFixed(2));
     };
 
+    const formatSpacedNumber = (num: number, decimals: number) => {
+        const fixed = decimals > 0 ? num.toFixed(decimals) : String(Math.round(num));
+        const [intPart, decPart] = fixed.split('.');
+        const spaced = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        return decPart !== undefined ? `${spaced},${decPart}` : spaced;
+    };
+
     const formatConverted = (xofAmount: number) => {
         const v = convertAmount(xofAmount);
         const formatted = currency.code === 'XOF'
-            ? v.toLocaleString()
-            : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            ? formatSpacedNumber(v, 0)
+            : formatSpacedNumber(v, 2);
         // Affichage: XOF et EUR en suffixe (après le montant), USD en préfixe (avant le montant)
         if (currency.code === 'USD') return `${currency.symbol}${formatted}`;
         // Par défaut (XOF, EUR, autres), afficher le symbole à droite
@@ -176,7 +228,7 @@ export default function ReservationForm() {
             if (prefillParam) {
                 const data = decodePrefillParam(prefillParam);
                 if (data && typeof data === 'object') {
-                    applyPrefillData(data, setForm, setExtrasQty);
+                    applyPrefillData(data, setForm, setExtrasQty, selectedOffer);
                     return; // priorité au prefill
                 }
             }
@@ -204,29 +256,51 @@ export default function ReservationForm() {
     // détecte si une suite est présente (piscine & salle de sport incluses)
     const hasSuite = useMemo(() => Object.values(form.rooms).some(r => r.type === 'suite'), [form.rooms]);
 
+    // Prix unitaire par nuit pour une chambre (tient compte de l'offre sélectionnée pour la chambre 1)
+    const getRoomUnitPrice = (roomKey: string, room: RoomParams): number => {
+        if (selectedOffer && roomKey === 'room1') {
+            return selectedOffer.price;
+        }
+        if (room.type === "suite") return PRICE_SUITE;
+        if (room.type !== "") return room.clim === "oui" ? PRICE_CLIM : PRICE_VENT;
+        return 0;
+    };
+
     // total : uniquement le prix des chambres (les extras sont payés sur place)
     const total = useMemo(() => {
         let roomTotal = 0;
-        Object.values(form.rooms).forEach((room) => {
-            if (room.type === "suite") roomTotal += PRICE_SUITE;
-            else if (room.type !== "") roomTotal += room.clim === "oui" ? PRICE_CLIM : PRICE_VENT;
+        Object.entries(form.rooms).forEach(([roomKey, room]) => {
+            roomTotal += getRoomUnitPrice(roomKey, room);
         });
         return (roomTotal * nights);
-    }, [form.rooms, nights]);
+    }, [form.rooms, nights, selectedOffer]);
 
     // ---------- Handlers ----------
     useEffect(() => {
         setForm(prev => {
             const newRooms = { ...prev.rooms };
             for (let i = 1; i <= prev.numRooms; i++) {
-                if (!newRooms[`room${i}`]) newRooms[`room${i}`] = { type: "", adults: 1, children: 0, clim: "" };
+                if (i === 1 && selectedOffer) {
+                    const existing = newRooms['room1'];
+                    newRooms['room1'] = {
+                        type: selectedOffer.roomType,
+                        adults: existing?.adults || 1,
+                        children: existing?.children || 0,
+                        clim: selectedOffer.clim,
+                    };
+                } else if (!newRooms[`room${i}`]) {
+                    newRooms[`room${i}`] = { type: "", adults: 1, children: 0, clim: "" };
+                }
             }
             Object.keys(newRooms).filter(k => Number(k.replace("room", "")) > prev.numRooms).forEach(k => delete newRooms[k]);
             return { ...prev, rooms: newRooms };
         });
-    }, [form.numRooms]);
+    }, [form.numRooms, selectedOffer]);
 
     const handleRoomChange = (key: string, field: keyof RoomParams, value: any) => {
+        if (selectedOffer && key === 'room1' && (field === 'type' || field === 'clim')) {
+            return;
+        }
         setForm(prev => {
             const updated = { ...prev.rooms };
             if (field === "type" && value === "suite") {
@@ -331,7 +405,7 @@ export default function ReservationForm() {
         if (Object.keys(errs).length === 0) setStep(2);
     };
 
-    const validateStep4 = () => {
+    const validateStep4 = async () => {
         const errs: Record<string, string> = {};
         if (!form.customer.name.trim()) errs.name = "Nom obligatoire";
         if (!form.customer.email?.trim()) errs.email = "Email obligatoire";
@@ -341,12 +415,44 @@ export default function ReservationForm() {
         }
         if (!form.customer.phone.trim()) errs.phone = "Téléphone obligatoire";
         setErrorsStep4(errs);
-        if (Object.keys(errs).length === 0) {
-            // Générer et stocker le numéro de réservation avant d'aller au step facture
-            const num = generateReservationNumber();
-            setReservationNumber(num);
-            setStep(4);
+        if (Object.keys(errs).length > 0) return;
+
+        setIsVerifying(true);
+        setSubmitError(null);
+        try {
+            const res = await fetch('/api/bookings/verify/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    arrival: form.arrival ? form.arrival.toISOString() : null,
+                    departure: form.departure ? form.departure.toISOString() : null,
+                    numRooms: form.numRooms,
+                    rooms: form.rooms,
+                    offerSlug: selectedOffer?.slug ?? null,
+                    offerPrice: selectedOffer?.price,
+                    total,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.success) {
+                const msg = data?.error || "Impossible de vérifier le tarif côté serveur.";
+                setSubmitError(msg);
+                toast.error(msg);
+                return;
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Erreur de vérification tarifaire";
+            setSubmitError(msg);
+            toast.error(msg);
+            return;
+        } finally {
+            setIsVerifying(false);
         }
+
+        // Générer et stocker le numéro de réservation avant d'aller au step facture
+        const num = generateReservationNumber();
+        setReservationNumber(num);
+        setStep(4);
     };
 
     // Ouvre une nouvelle fenêtre contenant 2 pages puis lance l'impression:
@@ -387,15 +493,11 @@ export default function ReservationForm() {
 
         // facture HTML (page 2) - on reconstruit simplement depuis l'état
         const nightsLocal = nights;
-        const roomsHtml = Object.entries(form.rooms).map(([ _k, r ]) => {
-             let price = PRICE_VENT;
+        const roomsHtml = Object.entries(form.rooms).map(([ roomKey, r ]) => {
+             const price = getRoomUnitPrice(roomKey, r);
              const confort = getConfortLabel(r);
-             if (r.type === 'suite') {
-                 price = PRICE_SUITE;
-             } else if (r.clim === 'oui') {
-                 price = PRICE_CLIM;
-             }
-            return `<tr><td>${r.type.toUpperCase()} ${confort}<br/><small>${r.adults} Adulte(s) / ${r.children} Enfant(s)</small></td><td class="text-center">${nightsLocal}</td><td class="text-end">${formatConverted(price * nightsLocal)}</td></tr>`;
+             const offerTag = selectedOffer && roomKey === 'room1' ? ` — Offre : ${selectedOffer.title}` : '';
+            return `<tr><td>${r.type.toUpperCase()} ${confort}${offerTag}<br/><small>${r.adults} Adulte(s) / ${r.children} Enfant(s)</small></td><td class="text-center">${nightsLocal}</td><td class="text-end">${formatConverted(price * nightsLocal)}</td></tr>`;
          }).join('');
 
         const extrasHtml = extrasList.map(ex => {
@@ -425,6 +527,7 @@ export default function ReservationForm() {
             <div class="page">
                 <h2 class="center">FACTURE PROFORMA</h2>
                 <div><strong>Client :</strong> ${form.customer.name} ${form.customer.email ? `| ${form.customer.email}` : ''} | <strong>Période :</strong> ${nightsLocal} nuit(s)</div>
+                ${selectedOffer ? `<div><strong>Offre sélectionnée :</strong> ${selectedOffer.title} (${formatConverted(selectedOffer.price)} ${selectedOffer.per})</div>` : ''}
                 <table>
                     <thead><tr><th>Désignation</th><th>Nuits</th><th class="text-end">HT</th></tr></thead>
                     <tbody>
@@ -487,10 +590,14 @@ export default function ReservationForm() {
         msg += `\n📅 *Séjour :* Du ${arrivalStr} au ${departureStr}\n`;
         msg += `🌙 *Nuits :* ${nights}\n`;
         msg += `👥 *Nombre total de personnes :* ${Math.max(0, totalPeople)}\n\n`;
-        msg += `🏨 *Détails des chambres :*\n`;
-        Object.values(form.rooms).forEach((r, i) => {
+        if (selectedOffer) {
+            msg += `\n🏷️ *Offre sélectionnée :* ${selectedOffer.title} (${formatConverted(selectedOffer.price)} ${selectedOffer.per})\n`;
+        }
+        msg += `\n🏨 *Détails des chambres :*\n`;
+        Object.entries(form.rooms).forEach(([roomKey, r], i) => {
             const confort = getConfortLabel(r);
-            msg += `- Chambre ${i + 1}: ${r.type.toUpperCase()} (${confort}) - ${r.adults}A/${r.children}E\n`;
+            const offerSuffix = selectedOffer && roomKey === 'room1' ? ` [Offre: ${selectedOffer.title}]` : '';
+            msg += `- Chambre ${i + 1}: ${r.type.toUpperCase()} (${confort})${offerSuffix} - ${r.adults}A/${r.children}E\n`;
         });
         // extras: inclues (suite) ou payés sur place
         const included = hasSuite ? ['Piscine', 'Salle de sport'] : [];
@@ -542,8 +649,12 @@ export default function ReservationForm() {
          const roomsRows = Object.entries(form.rooms).map(([k, r], idx) => {
             const confort = getConfortLabel(r);
             const label = r.type ? r.type.toUpperCase() : 'NON DÉFINI';
-            return `<tr>\n<th scope="row" style="background-color:#f4f4f4">Chambre :</th>\n<td>${label} ${confort} (Chambre ${idx + 1})</td>\n</tr>`;
+            const offerSuffix = selectedOffer && k === 'room1' ? ` — Offre : ${selectedOffer.title}` : '';
+            return `<tr>\n<th scope="row" style="background-color:#f4f4f4">Chambre :</th>\n<td>${label} ${confort}${offerSuffix} (Chambre ${idx + 1})</td>\n</tr>`;
         }).join('\n');
+         const offerRowHtml = selectedOffer
+            ? `<tr>\n<th scope="row" style="background-color:#f4f4f4"><strong>Offre sélectionnée :</strong></th>\n<td>${selectedOffer.title} (${formatConverted(selectedOffer.price)} ${selectedOffer.per})</td>\n</tr>`
+            : '';
 
         // Extras
         const included = hasSuite ? ['Piscine', 'Salle de sport'] : [];
@@ -576,6 +687,7 @@ export default function ReservationForm() {
             <h2 style="text-align:center">Détails de la Réservation</h2>
             
             <table style="border-collapse:collapse; border-color:#dddddd; margin-bottom:20px; text-align:left; width:60%">
+            	${offerRowHtml}
             	${roomsRows}
             	<tr>
             		<th scope="row" style="background-color:#f4f4f4"><strong>Date d'arrivée :</strong></th>
@@ -674,7 +786,7 @@ export default function ReservationForm() {
                 return { name: ex.name, unitPrice: isIncludedBySuite ? 0 : ex.price, qty, total: isIncludedBySuite ? 0 : ex.price * qty, paidOnSite: !isIncludedBySuite };
             });
 
-        const payload = {
+        const basePayload = {
          reservationNumber: num,
          customer: form.customer,
          arrival: form.arrival ? form.arrival.toISOString() : null,
@@ -687,6 +799,9 @@ export default function ReservationForm() {
          rooms: form.rooms,
          extras: extrasDetailed,
          total: total,
+         offerSlug: selectedOffer?.slug ?? null,
+         offerPrice: selectedOffer?.price,
+         offer: selectedOffer ?? null,
          // ajouter information de devise (conversion simple depuis XOF)
          currency: {
             code: currency.code,
@@ -700,6 +815,78 @@ export default function ReservationForm() {
          },
          createdAt: new Date().toISOString(),
      } as const;
+
+        // 1. Vérification, enregistrement & envoi automatique du reçu email (client + admin) côté serveur Next.js
+        let verifiedTotal = total;
+        let serverReservation: StoredReservation | null = null;
+        let receiptSummary: EmailReceiptSummary | null = null;
+        try {
+            const localRes = await fetch('/api/bookings/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(basePayload),
+            });
+            const localData = await localRes.json();
+            if (!localRes.ok || !localData?.success) {
+                const errMsg = localData?.error || 'Erreur lors de la validation tarifaire serveur';
+                setSubmitError(errMsg);
+                toast.error(errMsg);
+                throw new Error(errMsg);
+            }
+            if (typeof localData?.data?.verified?.verifiedTotal === 'number') {
+                verifiedTotal = localData.data.verified.verifiedTotal;
+            }
+            if (localData?.data?.reservation) {
+                serverReservation = localData.data.reservation as StoredReservation;
+            }
+            if (localData?.data?.emailReceipt) {
+                receiptSummary = localData.data.emailReceipt as EmailReceiptSummary;
+                setEmailReceipt(receiptSummary);
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setSubmitError(msg);
+            toast.error(msg);
+            throw err;
+        }
+
+        // Synchroniser le profil utilisateur et l'historique local "Mes Réservations"
+        saveStoredUserProfile({
+            name: form.customer.name,
+            email: form.customer.email || '',
+            phone: form.customer.phone,
+            whatsapp: Boolean(form.customer.whatsapp),
+        });
+
+        const fallbackReservation: StoredReservation = {
+            id: num,
+            reservationNumber: num,
+            arrival: basePayload.arrival,
+            departure: basePayload.departure,
+            nights: basePayload.nights,
+            numRooms: basePayload.numRooms,
+            rooms: basePayload.rooms,
+            extras: extrasDetailed,
+            customer: form.customer,
+            total: verifiedTotal,
+            currency: basePayload.currency,
+            offer: selectedOffer ?? null,
+            label: basePayload.label,
+            note_private: basePayload.note_private,
+            status: 'confirmed',
+            emailReceipt: receiptSummary ?? undefined,
+            createdAt: basePayload.createdAt,
+        };
+        upsertStoredReservation(serverReservation ?? fallbackReservation);
+
+        if (receiptSummary?.userSent) {
+            toast.success(`Reçu de confirmation envoyé à ${receiptSummary.userEmail}`);
+        }
+
+        const payload = {
+            ...basePayload,
+            total: verifiedTotal,
+        };
 
         const apiUrl = "https://apps.hotellepays.com/api/reservations";
 
@@ -751,13 +938,28 @@ export default function ReservationForm() {
                     <div style={{ position: 'relative' }}>
                         <CurrencySelector />
                     </div>
+                    {selectedOffer && (
+                        <div
+                            className="alert alert-warning d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-4"
+                            role="status"
+                        >
+                            <div>
+                                <strong>Offre sélectionnée :</strong> {selectedOffer.title} —{' '}
+                                <span className="fw-bold">{formatConverted(selectedOffer.price)}</span>{' '}
+                                <span className="text-muted">{selectedOffer.per}</span>
+                            </div>
+                            <Link href="/pricing/" className="btn btn-sm btn-outline-dark flex-shrink-0">
+                                Changer d&apos;offre
+                            </Link>
+                        </div>
+                    )}
                     {/* STEP 0 : DATES */}
                     {step === 0 && (
                         <div>
                             <h5>1. Dates et Chambres</h5>
                             <div className="row mb-3">
                                 <div className="col-md-6">
-                                    <label htmlFor="arrival">Arrivée (+2h min si aujourd'hui)</label>
+                                    <label htmlFor="arrival">Arrivée (+2h min si aujourd&apos;hui)</label>
                                     <input
                                         id="arrival"
                                         type="datetime-local"
@@ -794,13 +996,26 @@ export default function ReservationForm() {
                             {Object.keys(form.rooms).map((key, i) => {
                                 const room = form.rooms[key];
                                 const config = ROOM_TYPES.find(t => t.value === room.type);
+                                const isOfferLocked = Boolean(selectedOffer && key === 'room1');
                                 return (
                                     <div key={key} className="border p-3 rounded mb-3 bg-light">
-                                        <h6>Chambre {i + 1}</h6>
+                                        <h6>
+                                            Chambre {i + 1}
+                                            {isOfferLocked && selectedOffer && (
+                                                <span className="badge bg-warning text-dark ms-2">
+                                                    Offre : {selectedOffer.title} ({formatConverted(selectedOffer.price)})
+                                                </span>
+                                            )}
+                                        </h6>
+                                        {isOfferLocked && (
+                                            <small className="text-muted d-block mb-2">
+                                                Catégorie et tarif préremplis depuis l&apos;offre sélectionnée.
+                                            </small>
+                                        )}
                                         <div className="row g-2">
                                             <div className="col-md-6">
                                                 <label htmlFor={`${key}-type`} className="visually-hidden">Type de chambre</label>
-                                                <select id={`${key}-type`} className="form-select" value={room.type} onChange={e => handleRoomChange(key, "type", e.target.value)}>
+                                                <select id={`${key}-type`} className="form-select" value={room.type} disabled={isOfferLocked} onChange={e => handleRoomChange(key, "type", e.target.value)}>
                                                     <option value="">Type de chambre...</option>
                                                     {ROOM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                                                 </select>
@@ -809,12 +1024,24 @@ export default function ReservationForm() {
                                             <div className="col-md-6">
                                                 <label htmlFor={`${key}-clim`} className="visually-hidden">Confort</label>
                                                 {room.type === "suite" ? (
-                                                    <select id={`${key}-clim`} className="form-select bg-white" disabled value="oui"><option value="oui">Climatisation (Inclus)</option></select>
+                                                    <select id={`${key}-clim`} className="form-select bg-white" disabled value="oui">
+                                                        <option value="oui">
+                                                            Climatisation (Inclus{isOfferLocked && selectedOffer ? ` — ${formatConverted(selectedOffer.price)}` : ''})
+                                                        </option>
+                                                    </select>
                                                 ) : (
-                                                    <select id={`${key}-clim`} className="form-select" value={room.clim} onChange={e => handleRoomChange(key, "clim", e.target.value)}>
+                                                    <select id={`${key}-clim`} className="form-select" value={room.clim} disabled={isOfferLocked} onChange={e => handleRoomChange(key, "clim", e.target.value)}>
                                                         <option value="">Confort...</option>
-                                                        <option value="non">Ventilé ({formatConverted(PRICE_VENT)})</option>
-                                                        <option value="oui">Climatisé ({formatConverted(PRICE_CLIM)})</option>
+                                                        {isOfferLocked && selectedOffer ? (
+                                                            <option value={room.clim}>
+                                                                {room.clim === 'oui' ? 'Climatisé' : 'Ventilé'} ({formatConverted(selectedOffer.price)})
+                                                            </option>
+                                                        ) : (
+                                                            <>
+                                                                <option value="non">Ventilé ({formatConverted(PRICE_VENT)})</option>
+                                                                <option value="oui">Climatisé ({formatConverted(PRICE_CLIM)})</option>
+                                                            </>
+                                                        )}
                                                     </select>
                                                 )}
                                                 {errorsStep2[key]?.clim && <small className="text-danger">{errorsStep2[key].clim}</small>}
@@ -884,7 +1111,13 @@ export default function ReservationForm() {
                             <input id="client-phone" type="tel" className="form-control mb-3" placeholder="Téléphone" value={form.customer.phone} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, phone: e.target.value } }))} />
                             {errorsStep4.phone && <small className="text-danger">{errorsStep4.phone}</small>}
                             <div className="form-check mb-3"><input id="client-whatsapp" type="checkbox" className="form-check-input" checked={form.customer.whatsapp} onChange={e => setForm(prev => ({ ...prev, customer: { ...prev.customer, whatsapp: e.target.checked } }))} /><label htmlFor="client-whatsapp" className="form-check-label">Numéro WhatsApp</label></div>
-                            <div className="d-flex justify-content-between"><button className="btn btn-secondary" onClick={() => setStep(2)}>Retour</button><button className="btn btn-primary" onClick={validateStep4}>Générer Facture</button></div>
+                            <div className="d-flex justify-content-between">
+                                <button className="btn btn-secondary" onClick={() => setStep(2)} disabled={isVerifying}>Retour</button>
+                                <button className="btn btn-primary" onClick={validateStep4} disabled={isVerifying}>
+                                    {isVerifying ? "Vérification..." : "Générer Facture"}
+                                </button>
+                            </div>
+                            {submitError && <div className="mt-3 alert alert-danger" role="alert">{submitError}</div>}
                         </div>
                     )}
 
@@ -895,6 +1128,7 @@ export default function ReservationForm() {
                                 <h4 className="text-center mb-4">FACTURE PROFORMA</h4>
                                 <div className="mb-3">
                                     <strong>Client :</strong> {form.customer.name} {form.customer.email ? `| ${form.customer.email}` : ''} | <strong>Période :</strong> {nights} nuit(s)
+                                    {selectedOffer && <div><strong>Offre sélectionnée :</strong> {selectedOffer.title} ({formatConverted(selectedOffer.price)} {selectedOffer.per})</div>}
                                     {reservationNumber && <div><strong>Réservation N° :</strong> {reservationNumber}</div>}
                                     <div><strong>Nombre total de personnes :</strong> {Math.max(0, totalPeople)}</div>
                                 </div>
@@ -908,13 +1142,14 @@ export default function ReservationForm() {
                                     </thead>
                                     <tbody>
                                         {Object.entries(form.rooms).map(([roomKey, r]) => {
-                                            let pricePerNight = PRICE_VENT;
+                                            const pricePerNight = getRoomUnitPrice(roomKey, r);
                                             let confortLabel = "(VENTILÉ)";
-                                            if (r.type === "suite") { pricePerNight = PRICE_SUITE; confortLabel = "(CLIM INCLUS)"; }
-                                            else if (r.clim === "oui") { pricePerNight = PRICE_CLIM; confortLabel = "(CLIM)"; }
+                                            if (r.type === "suite") { confortLabel = "(CLIM INCLUS)"; }
+                                            else if (r.clim === "oui") { confortLabel = "(CLIM)"; }
+                                            const offerTag = selectedOffer && roomKey === 'room1' ? ` — Offre : ${selectedOffer.title}` : '';
                                             return (
                                                 <tr key={roomKey}>
-                                                    <td>{r.type.toUpperCase()} {confortLabel}<br/><small className="text-muted">{r.adults} Adulte(s) / {r.children} Enfant(s)</small></td>
+                                                    <td>{r.type.toUpperCase()} {confortLabel}{offerTag}<br/><small className="text-muted">{r.adults} Adulte(s) / {r.children} Enfant(s)</small></td>
                                                     <td className="text-center">{nights}</td>
                                                     <td className="text-end">{formatConverted(pricePerNight * nights)}</td>
                                                 </tr>
@@ -963,6 +1198,20 @@ export default function ReservationForm() {
                                     {isSubmitting ? "Envoi en cours..." : "Imprimer & Confirmer"}
                                 </button>
                             </div>
+                            {emailReceipt && (
+                                <div className="mt-3 alert alert-success d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2" role="status">
+                                    <div>
+                                        <strong>Confirmation envoyée par e-mail</strong>
+                                        <div className="small">
+                                            Un reçu de confirmation a été transmis à <strong>{emailReceipt.userEmail}</strong>
+                                            {emailReceipt.adminSent ? ` et à l'administration (${emailReceipt.adminEmail})` : ''}.
+                                        </div>
+                                    </div>
+                                    <Link href="/profile/" className="btn btn-sm btn-outline-success flex-shrink-0">
+                                        Mes Réservations
+                                    </Link>
+                                </div>
+                            )}
                             {submitError && <div className="mt-3 alert alert-warning" role="alert">{submitError}</div>}
                         </div>
                     )}
