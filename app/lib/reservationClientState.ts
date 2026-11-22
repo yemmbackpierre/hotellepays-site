@@ -128,6 +128,10 @@ export function partitionReservations(
       cancelled.push(item);
       continue;
     }
+    if (item.status === 'completed') {
+      past.push(item);
+      continue;
+    }
     const endDate = new Date(item.departure || item.arrival || item.createdAt || 0);
     if (!Number.isNaN(endDate.getTime()) && endDate.getTime() >= nowMs) {
       upcoming.push(item);

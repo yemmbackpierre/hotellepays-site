@@ -873,7 +873,8 @@ export default function ReservationForm({ initialOffer = null }: { initialOffer?
             offer: selectedOffer ?? null,
             label: basePayload.label,
             note_private: basePayload.note_private,
-            status: 'confirmed',
+            status: 'pending',
+            paymentStatus: 'unpaid',
             emailReceipt: receiptSummary ?? undefined,
             createdAt: basePayload.createdAt,
         };

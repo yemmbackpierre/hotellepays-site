@@ -1,0 +1,58 @@
+[
+  {
+    "id": "536c1ce6-5616-40cc-aa25-7134d1fbafaf",
+    "reservationNumber": "RCHLP00A6F92A69",
+    "arrival": "2026-11-28T08:37:33.969Z",
+    "departure": "2026-11-30T08:37:33.969Z",
+    "nights": 2,
+    "numRooms": 1,
+    "rooms": {
+      "room1": {
+        "type": "simple",
+        "adults": 2,
+        "children": 0,
+        "clim": "non"
+      }
+    },
+    "extras": [],
+    "customer": {
+      "name": "Test E2E",
+      "email": "e2e@example.com",
+      "phone": "+221770001122",
+      "whatsapp": true
+    },
+    "total": 40000,
+    "offer": {
+      "slug": "chambre-journee",
+      "title": "Chambre Journée",
+      "name": "simple-room",
+      "price": 20000,
+      "currency": "Fr",
+      "per": "par nuit",
+      "roomType": "simple",
+      "clim": "non"
+    },
+    "status": "pending",
+    "paymentStatus": "unpaid",
+    "createdAt": "2026-11-21T08:37:33.984Z",
+    "updatedAt": "2026-11-21T08:37:34.888Z",
+    "pdfHistory": [],
+    "emailReceipt": {
+      "userSent": true,
+      "adminSent": true,
+      "mode": "smtp",
+      "userEmail": "e2e@example.com",
+      "adminEmail": "hotellepays@gmail.com",
+      "sentAt": "2026-11-21T08:37:33.988Z",
+      "userMessageId": "<588482b8-20bf-86b8-c896-0f44e2b6a1f7@gmail.com>",
+      "adminMessageId": "<08371f89-b404-20f7-e2bc-53e882279061@gmail.com>"
+    },
+    "whatsappNotification": {
+      "configured": false,
+      "sent": false,
+      "provider": "meta-cloud-api",
+      "sentAt": "2026-11-21T08:37:34.887Z",
+      "error": "Variable serveur NOTIFICATIONNUMBER non définie."
+    }
+  }
+]

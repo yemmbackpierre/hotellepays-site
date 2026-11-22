@@ -27,7 +27,51 @@ export interface EmailReceiptSummary {
   errors?: string[];
 }
 
-export type ReservationStatus = 'confirmed' | 'pending' | 'cancelled';
+export type ReservationStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed';
+
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
+
+export interface WhatsAppNotificationSummary {
+  configured: boolean;
+  sent: boolean;
+  provider: 'meta-cloud-api';
+  messageId?: string;
+  sentAt?: string;
+  error?: string;
+  channel?: 'text' | 'template';
+}
+
+export interface ReservationPdfDispatchSummary {
+  channel: 'email' | 'whatsapp';
+  sent: boolean;
+  sentAt: string;
+  sentBy?: string;
+  recipient?: string;
+  mode?: string;
+  messageId?: string;
+  error?: string;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  action:
+    | 'booking.created'
+    | 'reservation.validated'
+    | 'reservation.cancelled'
+    | 'reservation.completed'
+    | 'reservation.payment_updated'
+    | 'reservation.deleted'
+    | 'reservation.pdf_exported'
+    | 'reservation.pdf_emailed'
+    | 'reservation.pdf_whatsapp_sent'
+    | 'reservation.whatsapp_manager_notified';
+  reservationNumber: string;
+  actorEmail: string;
+  actorRole: 'admin' | 'client' | 'system';
+  details?: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  createdAt: string;
+}
 
 export interface StoredReservation {
   id: string;
@@ -45,7 +89,17 @@ export interface StoredReservation {
   label?: string;
   note_private?: string;
   status: ReservationStatus;
+  paymentStatus?: PaymentStatus;
+  validatedAt?: string;
+  validatedBy?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  completedAt?: string;
+  completedBy?: string;
   emailReceipt?: EmailReceiptSummary;
+  whatsappNotification?: WhatsAppNotificationSummary;
+  pdfHistory?: ReservationPdfDispatchSummary[];
   createdAt: string;
   updatedAt?: string;
 }

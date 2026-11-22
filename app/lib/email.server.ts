@@ -15,6 +15,12 @@ import type { EmailReceiptSummary, StoredReservation } from '@/app/types/reserva
 
 const OUTBOX_FILE_PATH = path.join(process.cwd(), 'app', 'data', 'email-outbox.json');
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 interface OutboxRecord {
   id: string;
   to: string;
@@ -24,6 +30,7 @@ interface OutboxRecord {
   recipientRole: 'guest' | 'admin';
   html: string;
   text: string;
+  attachments?: Array<{ filename: string; contentType: string; sizeBytes: number }>;
   sentAt: string;
   mode: 'outbox';
 }
@@ -43,14 +50,23 @@ async function resolveHotelAndTemplates(
     ? mergeEmailTemplatesConfig(siteContent.emailTemplates, overrideTemplates)
     : siteContent.emailTemplates;
 
+  const envNotificationEmail = process.env.NOTIFICATIONEMAIL?.trim();
   const configuredAdmin = templates.adminRecipientEmail?.trim();
   const envAdmin = process.env.ADMIN_NOTIFICATION_EMAIL?.trim();
   const footerEmail = siteContent.footer?.contact?.email?.trim();
   const fileAdminEmail = admins[0]?.email?.trim();
+  const resolvedManagerEmail =
+    envNotificationEmail ||
+    configuredAdmin ||
+    envAdmin ||
+    footerEmail ||
+    fileAdminEmail ||
+    'hotellepays@gmail.com';
 
   return {
     hotel: {
-      adminEmail: configuredAdmin || envAdmin || footerEmail || fileAdminEmail || 'hotellepays@gmail.com',
+      adminEmail: resolvedManagerEmail,
+      notificationEmail: resolvedManagerEmail,
       hotelPhone: siteContent.footer?.contact?.phone || '+221 77 698 63 82',
       hotelAddress: siteContent.footer?.contact?.address || 'Sendou, Dakar, Sénégal',
       hotelName: 'Hôtel Le Pays',
@@ -104,6 +120,7 @@ async function dispatchSingleEmail(params: {
   replyTo?: string;
   reservationNumber: string;
   recipientRole: 'guest' | 'admin';
+  attachments?: EmailAttachment[];
 }): Promise<{ ok: boolean; mode: 'smtp' | 'resend' | 'outbox'; messageId?: string; error?: string }> {
   const fromAddress =
     process.env.SMTP_FROM?.trim() ||
@@ -140,6 +157,15 @@ async function dispatchSingleEmail(params: {
         html: params.html,
         text: params.text,
         ...(params.replyTo ? { replyTo: params.replyTo } : {}),
+        ...(params.attachments && params.attachments.length > 0
+          ? {
+              attachments: params.attachments.map((att) => ({
+                filename: att.filename,
+                content: att.content,
+                contentType: att.contentType,
+              })),
+            }
+          : {}),
       });
 
       return { ok: true as const, mode: 'smtp' as const, messageId: info.messageId };
@@ -173,6 +199,14 @@ async function dispatchSingleEmail(params: {
           html: params.html,
           text: params.text,
           ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+          ...(params.attachments && params.attachments.length > 0
+            ? {
+                attachments: params.attachments.map((att) => ({
+                  filename: att.filename,
+                  content: att.content.toString('base64'),
+                })),
+              }
+            : {}),
         }),
       });
       const json = (await res.json()) as { id?: string; message?: string };
@@ -205,6 +239,15 @@ async function dispatchSingleEmail(params: {
     recipientRole: params.recipientRole,
     html: params.html,
     text: params.text,
+    ...(params.attachments && params.attachments.length > 0
+      ? {
+          attachments: params.attachments.map((att) => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            sizeBytes: att.content.length,
+          })),
+        }
+      : {}),
     sentAt: new Date().toISOString(),
     mode: 'outbox',
   });
@@ -269,6 +312,128 @@ export async function sendReservationConfirmationEmails(
     userMessageId: userResult.messageId,
     adminMessageId: adminResult.messageId,
     ...(errors.length > 0 ? { errors } : {}),
+  };
+}
+
+export async function sendReservationPdfEmailToClient(params: {
+  reservation: StoredReservation;
+  pdfBuffer: Buffer;
+  filename: string;
+  verificationUrl: string;
+}): Promise<{
+  ok: boolean;
+  mode: 'smtp' | 'resend' | 'outbox';
+  recipientEmail: string;
+  messageId?: string;
+  error?: string;
+}> {
+  const { reservation, pdfBuffer, filename, verificationUrl } = params;
+  const recipientEmail = (reservation.customer?.email || '').trim();
+  if (!recipientEmail) {
+    return {
+      ok: false,
+      mode: 'outbox',
+      recipientEmail: '',
+      error: 'Adresse e-mail du client manquante.',
+    };
+  }
+
+  const { hotel, templates } = await resolveHotelAndTemplates();
+  const accentColor = /^#[0-9a-fA-F]{3,8}$/.test(templates.accentColor)
+    ? templates.accentColor
+    : '#b4833e';
+  const officialEmail = hotel.notificationEmail || hotel.adminEmail;
+  const guestName = reservation.customer?.name || 'Client';
+  const subject = `Fiche officielle de confirmation PDF — Réservation ${reservation.reservationNumber} (${hotel.hotelName})`;
+
+  const statusText =
+    reservation.status === 'confirmed'
+      ? 'Confirmée'
+      : reservation.status === 'completed'
+        ? 'Séjour terminé'
+        : reservation.status === 'cancelled'
+          ? 'Annulée'
+          : 'En attente de validation';
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f1ea;font-family:Arial,Helvetica,sans-serif;color:#1e293b;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f1ea;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background-color:#ffffff;border:1px solid #e5dfd2;border-radius:10px;overflow:hidden;">
+          <tr>
+            <td style="background-color:#18181b;padding:24px 28px;border-bottom:3px solid ${escapeHtml(accentColor)};">
+              <p style="margin:0 0 4px;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:${escapeHtml(accentColor)};font-weight:700;">
+                ${escapeHtml(hotel.hotelName)} · Document Officiel
+              </p>
+              <h1 style="margin:0;font-size:20px;line-height:1.3;color:#ffffff;font-weight:700;">
+                Confirmation de réservation (PDF)
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:26px 28px;font-size:14px;line-height:1.65;color:#334155;">
+              <p style="margin:0 0 12px;">Bonjour <strong>${escapeHtml(guestName)}</strong>,</p>
+              <p style="margin:0 0 14px;">
+                Veuillez trouver en pièce jointe votre fiche officielle de confirmation de réservation au format PDF pour votre dossier de séjour à l'<strong>${escapeHtml(hotel.hotelName)}</strong>.
+              </p>
+              <div style="margin:0 0 16px;padding:14px;background-color:#faf8f4;border:1px solid #e5dfd2;border-radius:8px;font-size:13px;">
+                <strong>Référence :</strong> ${escapeHtml(reservation.reservationNumber)}<br />
+                <strong>Statut officiel :</strong> ${escapeHtml(statusText)}<br />
+                <strong>Vérification en ligne :</strong> <a href="${escapeHtml(verificationUrl)}" style="color:${escapeHtml(accentColor)};">Vérifier l'authenticité</a>
+              </div>
+              <p style="margin:0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#64748b;">
+                <strong>${escapeHtml(hotel.hotelName)}</strong> · ${escapeHtml(hotel.hotelAddress)}<br />
+                Téléphone : ${escapeHtml(hotel.hotelPhone)} · E-mail officiel : ${escapeHtml(officialEmail)}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `${hotel.hotelName} — Fiche officielle de confirmation de réservation`,
+    '',
+    `Bonjour ${guestName},`,
+    `Veuillez trouver en pièce jointe votre confirmation PDF pour la réservation ${reservation.reservationNumber} (Statut : ${statusText}).`,
+    `Vérification officielle en ligne : ${verificationUrl}`,
+    '',
+    `${hotel.hotelName} | ${hotel.hotelPhone} | ${officialEmail} | ${hotel.hotelAddress}`,
+  ].join('\n');
+
+  const result = await dispatchSingleEmail({
+    to: recipientEmail,
+    subject,
+    html,
+    text,
+    replyTo: officialEmail,
+    reservationNumber: reservation.reservationNumber,
+    recipientRole: 'guest',
+    attachments: [
+      {
+        filename,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ],
+  });
+
+  return {
+    ok: result.ok,
+    mode: result.mode,
+    recipientEmail,
+    messageId: result.messageId,
+    ...(result.error ? { error: result.error } : {}),
   };
 }
 

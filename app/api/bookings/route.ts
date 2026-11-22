@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { bookingsService } from '@/app/services/bookings.service';
 import { verifyAndComputeBookingPricing } from '@/app/lib/pricingVerification.server';
 import { sendReservationConfirmationEmails } from '@/app/lib/email.server';
-import { updateReservationRecord } from '@/app/lib/reservationsStore.server';
+import {
+  appendAuditLog,
+  updateReservationRecord,
+} from '@/app/lib/reservationsStore.server';
+import { sendManagerBookingWhatsApp } from '@/app/lib/whatsapp.server';
 import { getAdminCookieConfig, getAdminSession } from '@/app/lib/adminAuth';
 import { getClientSession } from '@/app/lib/clientAuth.server';
+import type { EmailReceiptSummary, WhatsAppNotificationSummary } from '@/app/types/reservation';
 
 export const GUEST_EMAIL_COOKIE = 'lepays_guest_email';
 
@@ -50,14 +55,56 @@ export async function POST(request: NextRequest) {
       nights: verified.nights,
     });
 
-    const emailReceipt = await sendReservationConfirmationEmails(result.reservation);
+    // Send confirmation emails (non-blocking if SMTP/Resend fails)
+    let emailReceipt: EmailReceiptSummary | undefined;
+    try {
+      emailReceipt = await sendReservationConfirmationEmails(result.reservation);
+    } catch (emailErr) {
+      console.error('[API /bookings POST] Email dispatch failed:', emailErr);
+    }
+
+    // Send automatic WhatsApp notification to manager (strictly non-blocking, never simulated)
+    let whatsappNotification: WhatsAppNotificationSummary;
+    try {
+      whatsappNotification = await sendManagerBookingWhatsApp(result.reservation);
+    } catch (waErr) {
+      whatsappNotification = {
+        configured: false,
+        sent: false,
+        provider: 'meta-cloud-api',
+        sentAt: new Date().toISOString(),
+        error: waErr instanceof Error ? waErr.message : String(waErr),
+      };
+    }
+
     const updatedReservation =
       (await updateReservationRecord(result.reservation.reservationNumber, {
-        emailReceipt,
+        ...(emailReceipt ? { emailReceipt } : {}),
+        whatsappNotification,
       })) || {
         ...result.reservation,
-        emailReceipt,
+        ...(emailReceipt ? { emailReceipt } : {}),
+        whatsappNotification,
       };
+
+    // Log creation & manager WhatsApp attempt cleanly without exposing secrets
+    try {
+      await appendAuditLog({
+        action: 'booking.created',
+        reservationNumber: updatedReservation.reservationNumber,
+        actorEmail: updatedReservation.customer?.email || 'client',
+        actorRole: 'client',
+        details: `Nouvelle réservation enregistrée (Statut: ${updatedReservation.status}, Total: ${updatedReservation.total} XOF).`,
+        metadata: {
+          whatsappSent: Boolean(whatsappNotification.sent),
+          whatsappConfigured: Boolean(whatsappNotification.configured),
+          emailUserSent: Boolean(emailReceipt?.userSent),
+          emailAdminSent: Boolean(emailReceipt?.adminSent),
+        },
+      });
+    } catch {
+      // Never block booking completion due to audit write failure
+    }
 
     const response = NextResponse.json({
       success: true,
@@ -66,6 +113,12 @@ export async function POST(request: NextRequest) {
         reservation: updatedReservation,
         verified,
         emailReceipt,
+        whatsappNotification: {
+          configured: whatsappNotification.configured,
+          sent: whatsappNotification.sent,
+          provider: whatsappNotification.provider,
+          ...(whatsappNotification.sentAt ? { sentAt: whatsappNotification.sentAt } : {}),
+        },
       },
     });
 
@@ -125,7 +178,22 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, reservation: updated });
+    const finalized =
+      (await updateReservationRecord(reservationNumber, {
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: email,
+        cancellationReason: 'Annulation demandée par le client depuis son espace personnel',
+      })) || updated;
+
+    await appendAuditLog({
+      action: 'reservation.cancelled',
+      reservationNumber,
+      actorEmail: email,
+      actorRole: 'client',
+      details: 'Annulation effectuée depuis l’espace client.',
+    }).catch(() => {});
+
+    return NextResponse.json({ success: true, reservation: finalized });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ success: false, error: message }, { status: 400 });

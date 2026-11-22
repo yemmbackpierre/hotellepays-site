@@ -1,0 +1,12 @@
+[
+  {
+    "email": "client.smoke@example.com",
+    "codeHash": "90805b6a55b543205d015878e61c43a8d70babba99e47ef5b6c5309cb7b089c3",
+    "salt": "976c96a0073605d504cb1b8bad38690a",
+    "expiresAt": 1795251337845,
+    "createdAt": 1795250737845,
+    "lastSentAt": 1795250737845,
+    "attempts": 0,
+    "used": false
+  }
+]

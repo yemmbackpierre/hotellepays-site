@@ -714,7 +714,13 @@ export default function ProfileReservationsClient({
 
           <div className="text-lg-end d-flex flex-column justify-content-between align-items-lg-end">
             <div className="d-inline-flex align-items-center gap-1 small fw-semibold mb-2">
-              {category === 'upcoming' && (
+              {category === 'upcoming' && item.status === 'pending' && (
+                <span className="text-warning-emphasis bg-warning-subtle border border-warning-subtle rounded px-2 py-1 d-inline-flex align-items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  À venir · En attente de validation
+                </span>
+              )}
+              {category === 'upcoming' && item.status !== 'pending' && (
                 <span className="text-success d-inline-flex align-items-center gap-1">
                   <CheckCircle2 className="w-4 h-4" />
                   À venir · Confirmée
@@ -723,7 +729,7 @@ export default function ProfileReservationsClient({
               {category === 'past' && (
                 <span className="text-secondary d-inline-flex align-items-center gap-1">
                   <CalendarClock className="w-4 h-4" />
-                  Séjour passé
+                  {item.status === 'completed' ? 'Séjour terminé' : 'Séjour passé'}
                 </span>
               )}
               {category === 'cancelled' && (

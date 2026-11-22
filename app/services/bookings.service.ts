@@ -82,7 +82,8 @@ export const bookingsService = {
       offer: payload.offer ?? null,
       label: payload.label,
       note_private: payload.note_private || payload.notes,
-      status: 'confirmed',
+      status: 'pending',
+      paymentStatus: 'unpaid',
       emailReceipt: payload.emailReceipt,
       createdAt: payload.createdAt || new Date().toISOString(),
     };

@@ -21,6 +21,7 @@ export interface EmailTemplatesConfig {
 export interface EmailHotelContext {
   hotelName: string;
   adminEmail: string;
+  notificationEmail?: string;
   hotelPhone: string;
   hotelAddress: string;
   siteUrl?: string;
@@ -45,6 +46,8 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Array<{ token: string; description: st
   { token: '{{hotelPhone}}', description: "Téléphone de l'hôtel" },
   { token: '{{hotelEmail}}', description: "E-mail de l'hôtel" },
   { token: '{{hotelAddress}}', description: "Adresse de l'hôtel" },
+  { token: '{{reservationStatus}}', description: 'Statut réel de la réservation' },
+  { token: '{{notificationEmail}}', description: 'E-mail officiel du responsable' },
 ];
 
 export const SAMPLE_RESERVATION_FOR_PREVIEW: StoredReservation = {
@@ -347,12 +350,32 @@ function buildBookingSummaryBlockHtml(
        </tr>`
     : '';
 
+  const statusLabel =
+    reservation.status === 'confirmed'
+      ? 'Confirmée'
+      : reservation.status === 'cancelled'
+        ? 'Annulée'
+        : reservation.status === 'completed'
+          ? 'Séjour terminé'
+          : 'En attente de validation';
+
+  const paymentLabel =
+    reservation.paymentStatus === 'paid'
+      ? 'Réglée'
+      : reservation.paymentStatus === 'partial'
+        ? 'Acompte réglé'
+        : 'Non réglée (paiement à confirmer)';
+
   return `
     ${offerBanner}
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #e5e7eb;margin:0 0 16px;">
       <tr>
         <td style="padding:10px 12px;background-color:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:13px;color:#64748b;width:38%;">N° de réservation</td>
         <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#0f172a;">${escapeHtml(reservation.reservationNumber)}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;background-color:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:13px;color:#64748b;">Statut actuel</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#0f172a;">${escapeHtml(statusLabel)} · <span style="font-weight:400;color:#475569;">Paiement : ${escapeHtml(paymentLabel)}</span></td>
       </tr>
       ${guestRows}
       <tr>
@@ -422,6 +445,16 @@ export function renderEmailFromTemplate(
   const arrivalStr = formatEmailDateFr(reservation.arrival);
   const departureStr = formatEmailDateFr(reservation.departure);
 
+  const officialContactEmail = hotel.notificationEmail || hotel.adminEmail;
+  const reservationStatusText =
+    reservation.status === 'confirmed'
+      ? 'Confirmée'
+      : reservation.status === 'cancelled'
+        ? 'Annulée'
+        : reservation.status === 'completed'
+          ? 'Séjour terminé'
+          : 'En attente de validation';
+
   const plainTokens: Record<string, string> = {
     hotelName: hotel.hotelName,
     reservationNumber: reservation.reservationNumber,
@@ -436,8 +469,10 @@ export function renderEmailFromTemplate(
     totalPrice: totalPriceDisplay,
     profileUrl,
     hotelPhone: hotel.hotelPhone,
-    hotelEmail: hotel.adminEmail,
+    hotelEmail: officialContactEmail,
     hotelAddress: hotel.hotelAddress,
+    reservationStatus: reservationStatusText,
+    notificationEmail: officialContactEmail,
     accentColor,
   };
 
@@ -452,6 +487,18 @@ export function renderEmailFromTemplate(
     accentColor,
     role === 'admin'
   );
+
+  const guestPdfNoticeText = `Pour obtenir votre fiche officielle de confirmation de réservation au format PDF, veuillez contacter notre administration sur WhatsApp au numéro de notre responsable ou par e-mail à l'adresse suivante : ${officialContactEmail}. Merci de communiquer votre référence de réservation afin que notre équipe puisse vous transmettre votre document.`;
+
+  const guestPdfNoticeHtml =
+    role === 'guest'
+      ? `<div style="margin:20px 0 8px;padding:14px 16px;background-color:#fbf7ef;border:1px solid #eadcc2;border-left:4px solid ${escapeHtml(
+          accentColor
+        )};border-radius:6px;font-size:13px;line-height:1.65;color:#4a3514;">
+           <strong>Fiche officielle de confirmation PDF :</strong><br />
+           ${escapeHtml(guestPdfNoticeText)}
+         </div>`
+      : '';
 
   const testPrefix = options?.isTest ? '[TEST] ' : '';
   const subject = `${testPrefix}${interpolateTokens(tpl.subject, plainTokens)}`;
@@ -468,6 +515,13 @@ export function renderEmailFromTemplate(
       extrasSection: extrasHtml,
       bookingSummary: bookingSummaryHtml,
     });
+    if (role === 'guest' && !html.includes(officialContactEmail)) {
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `${guestPdfNoticeHtml}</body>`);
+      } else {
+        html = `${html}${guestPdfNoticeHtml}`;
+      }
+    }
   } else {
     const headerBg = role === 'guest' ? '#18181b' : '#0f172a';
     const outerBg = role === 'guest' ? '#f4f1ea' : '#eef2f7';
@@ -524,12 +578,13 @@ export function renderEmailFromTemplate(
                 ${escapeHtml(introText)}
               </p>
               ${bookingSummaryHtml}
+              ${guestPdfNoticeHtml}
               ${ctaHtml}
               <div style="margin:22px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;line-height:1.6;color:#64748b;">
                 <p style="margin:0 0 10px;">${escapeHtml(footerNote)}</p>
                 <p style="margin:0;">
                   <strong>${escapeHtml(hotel.hotelName)}</strong> · ${escapeHtml(hotel.hotelAddress)}<br />
-                  Téléphone / WhatsApp : ${escapeHtml(hotel.hotelPhone)} · E-mail : ${escapeHtml(hotel.adminEmail)}
+                  Téléphone / WhatsApp : ${escapeHtml(hotel.hotelPhone)} · E-mail : ${escapeHtml(officialContactEmail)}
                 </p>
               </div>
             </td>
@@ -549,6 +604,7 @@ export function renderEmailFromTemplate(
     introText,
     '',
     `Référence : ${reservation.reservationNumber}`,
+    `Statut actuel : ${reservationStatusText}`,
     `Client : ${plainTokens.guestName} (${plainTokens.guestEmail} · ${plainTokens.guestPhone})`,
     reservation.offer
       ? `Offre : ${reservation.offer.title} (${formatEmailXof(reservation.offer.price)} ${reservation.offer.per})`
@@ -561,8 +617,10 @@ export function renderEmailFromTemplate(
     'Extras :',
     buildExtrasPlainText(reservation),
     '',
+    role === 'guest' ? guestPdfNoticeText : '',
+    role === 'guest' ? '' : '',
     footerNote,
-    `${hotel.hotelName} | ${hotel.hotelPhone} | ${hotel.adminEmail} | ${hotel.hotelAddress}`,
+    `${hotel.hotelName} | ${hotel.hotelPhone} | ${officialContactEmail} | ${hotel.hotelAddress}`,
   ]
     .filter(Boolean)
     .join('\n');

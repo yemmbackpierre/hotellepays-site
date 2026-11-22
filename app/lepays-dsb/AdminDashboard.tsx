@@ -35,10 +35,12 @@ import {
   Loader2,
   Menu,
   Mail,
+  CalendarCheck,
 } from 'lucide-react';
 import type { AdminSession } from '@/app/lib/adminAuth';
 import type { SiteContent, SliderItem } from '@/app/lib/siteContent';
 import EmailTemplatesEditor from './EmailTemplatesEditor';
+import ReservationsManager from './ReservationsManager';
 import type {
   BlogPost,
   ContactInfoItem,
@@ -76,7 +78,8 @@ type SectionKey =
   | 'faqs'
   | 'contact'
   | 'footer'
-  | 'emailTemplates';
+  | 'emailTemplates'
+  | 'reservations';
 
 interface NavGroup {
   label: string;
@@ -84,6 +87,13 @@ interface NavGroup {
 }
 
 const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Réservations & Clients',
+    items: [
+      { key: 'reservations', title: 'Gestion des réservations', icon: <CalendarCheck className="w-4 h-4" /> },
+      { key: 'emailTemplates', title: "Modèles d'e-mails", icon: <Mail className="w-4 h-4" /> },
+    ],
+  },
   {
     label: 'Identité & Accueil',
     items: [
@@ -120,7 +130,6 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'faqs', title: 'Foire aux questions', icon: <HelpCircle className="w-4 h-4" /> },
       { key: 'contact', title: 'Page Contact', icon: <Phone className="w-4 h-4" /> },
       { key: 'footer', title: 'Pied de page', icon: <PanelBottom className="w-4 h-4" /> },
-      { key: 'emailTemplates', title: "Modèles d'e-mails", icon: <Mail className="w-4 h-4" /> },
     ],
   },
 ];
@@ -2386,6 +2395,8 @@ export default function AdminDashboard({ initialContent, admin }: AdminDashboard
             onNotify={notify}
           />
         );
+      case 'reservations':
+        return <ReservationsManager onNotify={notify} />;
     }
   };
 

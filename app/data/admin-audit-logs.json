@@ -1,0 +1,74 @@
+[
+  {
+    "action": "reservation.deleted",
+    "reservationNumber": "RCHLP0013B8AB9F",
+    "actorEmail": "admin@hotellepays.com",
+    "actorRole": "admin",
+    "details": "Réservation supprimée (Debug User · 75000 XOF).",
+    "id": "a9617af1-0706-4114-a906-693c2df5adb3",
+    "createdAt": "2026-11-21T08:44:23.744Z"
+  },
+  {
+    "action": "booking.created",
+    "reservationNumber": "RCHLP0013B8AB9F",
+    "actorEmail": "debug@example.com",
+    "actorRole": "client",
+    "details": "Nouvelle réservation enregistrée (Statut: pending, Total: 75000 XOF).",
+    "metadata": {
+      "whatsappSent": false,
+      "whatsappConfigured": false,
+      "emailUserSent": true,
+      "emailAdminSent": true
+    },
+    "id": "4e1b58e1-602c-455a-bbf5-072b4aa93203",
+    "createdAt": "2026-11-21T08:44:20.152Z"
+  },
+  {
+    "action": "reservation.deleted",
+    "reservationNumber": "RCHLP00B068DFC6",
+    "actorEmail": "admin@hotellepays.com",
+    "actorRole": "admin",
+    "details": "Réservation supprimée (Debug User · 75000 XOF).",
+    "id": "c8d67cdf-3271-4cd3-bd61-5770b13815f2",
+    "createdAt": "2026-11-21T08:44:12.534Z"
+  },
+  {
+    "action": "booking.created",
+    "reservationNumber": "RCHLP00B068DFC6",
+    "actorEmail": "debug@example.com",
+    "actorRole": "client",
+    "details": "Nouvelle réservation enregistrée (Statut: pending, Total: 75000 XOF).",
+    "metadata": {
+      "whatsappSent": false,
+      "whatsappConfigured": false,
+      "emailUserSent": true,
+      "emailAdminSent": true
+    },
+    "id": "74b342fb-dbda-4482-bf38-6963e0b2da98",
+    "createdAt": "2026-11-21T08:44:12.350Z"
+  },
+  {
+    "action": "reservation.pdf_exported",
+    "reservationNumber": "RCHLP00A6F92A69",
+    "actorEmail": "admin@hotellepays.com",
+    "actorRole": "admin",
+    "details": "PDF généré et téléchargé (Statut au moment de l'export : pending).",
+    "id": "296708d6-86fe-4861-806c-dfaf881624a2",
+    "createdAt": "2026-11-21T08:37:35.392Z"
+  },
+  {
+    "action": "booking.created",
+    "reservationNumber": "RCHLP00A6F92A69",
+    "actorEmail": "e2e@example.com",
+    "actorRole": "client",
+    "details": "Nouvelle réservation enregistrée (Statut: pending, Total: 40000 XOF).",
+    "metadata": {
+      "whatsappSent": false,
+      "whatsappConfigured": false,
+      "emailUserSent": true,
+      "emailAdminSent": true
+    },
+    "id": "d00d5352-55fb-4ffe-9812-daf227fe6a9d",
+    "createdAt": "2026-11-21T08:37:34.891Z"
+  }
+]
