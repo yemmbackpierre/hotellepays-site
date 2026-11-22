@@ -53,7 +53,7 @@ const findRoomBySlug = (slug: unknown, roomsList: Room[]) => {
 };
 
 // ✅ METADATA
-export async function generateRoomMetadata({ params }: { params: Promise<{ slug: string }> }) {
+async function generateRoomMetadata({ params }: { params: Promise<{ slug: string }> }) {
     const { slug: roomSlug } = await params;
     const siteContent = await getSiteContent();
     const allRooms = [...siteContent.rooms, ...siteContent.presentationRooms, ...siteContent.suites];

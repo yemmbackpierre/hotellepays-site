@@ -7,6 +7,7 @@ import { readReservationsFromFile } from '@/app/lib/reservationsStore.server';
 import type { UserProfile } from '@/app/types/user';
 
 export const CLIENT_SESSION_COOKIE = 'lepays_client_session';
+export const GUEST_EMAIL_COOKIE = 'lepays_guest_email';
 
 const OTP_STORE_PATH = path.join(process.cwd(), 'app', 'data', 'client-otps.json');
 const CLIENT_PROFILES_PATH = path.join(process.cwd(), 'app', 'data', 'client-profiles.json');

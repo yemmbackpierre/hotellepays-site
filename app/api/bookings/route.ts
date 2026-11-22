@@ -8,10 +8,8 @@ import {
 } from '@/app/lib/reservationsStore.server';
 import { sendManagerBookingWhatsApp } from '@/app/lib/whatsapp.server';
 import { getAdminCookieConfig, getAdminSession } from '@/app/lib/adminAuth';
-import { getClientSession } from '@/app/lib/clientAuth.server';
+import { getClientSession, GUEST_EMAIL_COOKIE } from '@/app/lib/clientAuth.server';
 import type { EmailReceiptSummary, WhatsAppNotificationSummary } from '@/app/types/reservation';
-
-export const GUEST_EMAIL_COOKIE = 'lepays_guest_email';
 
 export async function GET() {
   try {

@@ -31,6 +31,8 @@ export type ReservationStatus = 'confirmed' | 'pending' | 'cancelled' | 'complet
 
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid';
 
+export type WhatsAppDeliveryStatus = 'accepted' | 'sent' | 'delivered' | 'read' | 'failed';
+
 export interface WhatsAppNotificationSummary {
   configured: boolean;
   sent: boolean;
@@ -39,6 +41,10 @@ export interface WhatsAppNotificationSummary {
   sentAt?: string;
   error?: string;
   channel?: 'text' | 'template';
+  deliveryStatus?: WhatsAppDeliveryStatus;
+  deliveredAt?: string;
+  readAt?: string;
+  deliveryError?: string;
 }
 
 export interface ReservationPdfDispatchSummary {
@@ -50,6 +56,25 @@ export interface ReservationPdfDispatchSummary {
   mode?: string;
   messageId?: string;
   error?: string;
+  deliveryStatus?: WhatsAppDeliveryStatus;
+  deliveryError?: string;
+}
+
+export interface WhatsAppWebhookEventRecord {
+  id: string;
+  kind: 'status' | 'message';
+  wamid?: string;
+  phoneNumberId?: string;
+  fromOrRecipient?: string;
+  profileName?: string;
+  status?: 'sent' | 'delivered' | 'read' | 'failed';
+  messageType?: string;
+  preview?: string;
+  reservationNumber?: string;
+  signatureVerified: boolean;
+  errorDetails?: string;
+  eventTimestamp: string;
+  receivedAt: string;
 }
 
 export interface AdminAuditEntry {
@@ -64,7 +89,9 @@ export interface AdminAuditEntry {
     | 'reservation.pdf_exported'
     | 'reservation.pdf_emailed'
     | 'reservation.pdf_whatsapp_sent'
-    | 'reservation.whatsapp_manager_notified';
+    | 'reservation.whatsapp_manager_notified'
+    | 'whatsapp.webhook_status'
+    | 'whatsapp.message_received';
   reservationNumber: string;
   actorEmail: string;
   actorRole: 'admin' | 'client' | 'system';

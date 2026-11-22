@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CLIENT_SESSION_COOKIE, getClientCookieConfig } from '@/app/lib/clientAuth.server';
-import { GUEST_EMAIL_COOKIE } from '@/app/api/bookings/route';
+import {
+  CLIENT_SESSION_COOKIE,
+  getClientCookieConfig,
+  GUEST_EMAIL_COOKIE,
+} from '@/app/lib/clientAuth.server';
 
 export async function POST(request: NextRequest) {
   const res = NextResponse.json({ success: true });

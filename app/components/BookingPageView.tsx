@@ -5,7 +5,6 @@ import ReservationForm from '@/app/components/forms/ReservationForm';
 import PrefillBadge from '@/app/components/PrefillBadge';
 import type { PricingOffer } from '@/app/lib/pricingOffer';
 import type { Testimonial } from '@/app/types/hotelData';
-import styles from '@/app/booking/booking.module.css';
 
 interface BookingPageViewProps {
   slug?: string;
@@ -24,12 +23,12 @@ export default function BookingPageView({
   return (
     <>
       <section
-        className={styles.bookingPageTitle}
+        className="bookingPageTitle"
         style={{ backgroundImage: `url('/assets/images/resource/page-title-bg2.png')` }}
       >
-        <div className={styles.bookingAutoContainer}>
-          <div className={`${styles.bookingTitleOuter} ${styles.bookingTextCenter}`}>
-            <ul className={styles.bookingPageBreadcrumb}>
+        <div className="bookingAutoContainer">
+          <div className="bookingTitleOuter bookingTextCenter">
+            <ul className="bookingPageBreadcrumb">
               <li>
                 <Link href="/">Accueil</Link>
               </li>

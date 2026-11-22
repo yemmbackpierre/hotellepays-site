@@ -4,9 +4,12 @@ import { cookies } from 'next/headers';
 import Breadcrumb from '@/app/layouts/Breadcrumb';
 import ProfileReservationsClient from '@/app/components/ProfileReservationsClient';
 import AdminProfileBlockedNotice from '@/app/components/AdminProfileBlockedNotice';
-import { GUEST_EMAIL_COOKIE } from '@/app/api/bookings/route';
 import { getAdminSession } from '@/app/lib/adminAuth';
-import { getClientSession, getMergedClientProfile } from '@/app/lib/clientAuth.server';
+import {
+  getClientSession,
+  getMergedClientProfile,
+  GUEST_EMAIL_COOKIE,
+} from '@/app/lib/clientAuth.server';
 import { bookingsService } from '@/app/services/bookings.service';
 import { suggestKeywords } from '@/app/lib/seo';
 

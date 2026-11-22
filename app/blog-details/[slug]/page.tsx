@@ -102,7 +102,7 @@ const findPostBySlug = (slug: unknown, postsList: BlogPost[] = defaultPosts) => 
 // ✅ SEO
 //
 // 🔹 Ta fonction custom (inchangée)
-export async function generateblogMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+async function generateblogMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug: postSlug } = await params;
     const siteContent = await getSiteContent();
     const post = findPostBySlug(postSlug, siteContent.posts);
